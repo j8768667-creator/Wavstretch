@@ -189,26 +189,58 @@
   <!-- Right Column -->
   <div class="panel">
     <div class="section-label">Presets</div>
+    <input type="text" id="presetFilter" placeholder="Filter presets (e.g. &quot;dark&quot;, &quot;subtle&quot;, &quot;60x&quot;)" style="margin-bottom: 2px;">
     <div class="preset-list" id="presetList">
-      <div class="preset-row active" data-stretch="8" data-window="8192" data-phase="1.0" data-wtype="hann">
-        <span class="tag">Ethereal</span><span class="name">Dreamy Choir</span><span class="sub">8x</span>
-      </div>
-      <div class="preset-row" data-stretch="30" data-window="32768" data-phase="1.0" data-wtype="blackman">
-        <span class="tag">Dark</span><span class="name">Abyss Drone</span><span class="sub">30x</span>
-      </div>
-      <div class="preset-row" data-stretch="4" data-window="2048" data-phase="0.5" data-wtype="hamming">
-        <span class="tag">Lo-Fi</span><span class="name">Tape Ghost</span><span class="sub">4x</span>
-      </div>
-      <div class="preset-row" data-stretch="60" data-window="65536" data-phase="1.0" data-wtype="blackman">
-        <span class="tag">Cosmic</span><span class="name">Deep Space</span><span class="sub">60x</span>
-      </div>
-      <div class="preset-row" data-stretch="14" data-window="16384" data-phase="0.85" data-wtype="hann">
-        <span class="tag">Cinematic</span><span class="name">Horror Pad</span><span class="sub">14x</span>
+      <div class="preset-row" data-stretch="2" data-window="2048" data-phase="0.15" data-wtype="gaussian">
+        <span class="tag">Delicate</span><span class="name">Music Box Echo</span><span class="sub">2x</span>
       </div>
       <div class="preset-row" data-stretch="3" data-window="4096" data-phase="0.25" data-wtype="hann">
         <span class="tag">Subtle</span><span class="name">Slow Swell</span><span class="sub">3x</span>
       </div>
+      <div class="preset-row" data-stretch="3.5" data-window="4096" data-phase="0.3" data-wtype="gaussian">
+        <span class="tag">Bright</span><span class="name">Crystal Chime</span><span class="sub">3.5x</span>
+      </div>
+      <div class="preset-row" data-stretch="4" data-window="2048" data-phase="0.5" data-wtype="hamming">
+        <span class="tag">Lo-Fi</span><span class="name">Tape Ghost</span><span class="sub">4x</span>
+      </div>
+      <div class="preset-row" data-stretch="5" data-window="8192" data-phase="0.5" data-wtype="gaussian">
+        <span class="tag">Warm</span><span class="name">Sunrise Swell</span><span class="sub">5x</span>
+      </div>
+      <div class="preset-row" data-stretch="6" data-window="4096" data-phase="0.4" data-wtype="hamming">
+        <span class="tag">Retro</span><span class="name">Radio Fade</span><span class="sub">6x</span>
+      </div>
+      <div class="preset-row active" data-stretch="8" data-window="8192" data-phase="1.0" data-wtype="hann">
+        <span class="tag">Ethereal</span><span class="name">Dreamy Choir</span><span class="sub">8x</span>
+      </div>
+      <div class="preset-row" data-stretch="10" data-window="16384" data-phase="0.7" data-wtype="hann">
+        <span class="tag">Ambient</span><span class="name">Ocean Drift</span><span class="sub">10x</span>
+      </div>
+      <div class="preset-row" data-stretch="12" data-window="8192" data-phase="0.9" data-wtype="hamming">
+        <span class="tag">Grit</span><span class="name">Industrial Haze</span><span class="sub">12x</span>
+      </div>
+      <div class="preset-row" data-stretch="14" data-window="16384" data-phase="0.85" data-wtype="hann">
+        <span class="tag">Cinematic</span><span class="name">Horror Pad</span><span class="sub">14x</span>
+      </div>
+      <div class="preset-row" data-stretch="20" data-window="8192" data-phase="0.6" data-wtype="gaussian">
+        <span class="tag">Organic</span><span class="name">Whale Song</span><span class="sub">20x</span>
+      </div>
+      <div class="preset-row" data-stretch="25" data-window="16384" data-phase="0.95" data-wtype="blackman">
+        <span class="tag">Synthwave</span><span class="name">Neon Fog</span><span class="sub">25x</span>
+      </div>
+      <div class="preset-row" data-stretch="30" data-window="32768" data-phase="1.0" data-wtype="blackman">
+        <span class="tag">Dark</span><span class="name">Abyss Drone</span><span class="sub">30x</span>
+      </div>
+      <div class="preset-row" data-stretch="45" data-window="65536" data-phase="1.0" data-wtype="blackman">
+        <span class="tag">Icy</span><span class="name">Glacial Fields</span><span class="sub">45x</span>
+      </div>
+      <div class="preset-row" data-stretch="60" data-window="65536" data-phase="1.0" data-wtype="blackman">
+        <span class="tag">Cosmic</span><span class="name">Deep Space</span><span class="sub">60x</span>
+      </div>
+      <div class="preset-row" data-stretch="80" data-window="32768" data-phase="1.0" data-wtype="blackman">
+        <span class="tag">Extreme</span><span class="name">Void Whisper</span><span class="sub">80x</span>
+      </div>
     </div>
+    <div class="progress-label" id="presetFilterEmpty" style="display:none;">No presets match.</div>
 
     <div class="control-group">
       <div class="control-header"><span>Stretch Factor</span><span class="val" id="stretchVal">8.0x</span></div>
@@ -491,6 +523,20 @@ syncBtn.onclick = () => {
   stretchInput.oninput({ target: stretchInput });
   syncResult.textContent = `${clipLen.toFixed(2)}s clip -> ${targetSeconds.toFixed(2)}s (${bars} bars @ ${bpm} BPM) = ${ratio.toFixed(2)}x stretch${ratio !== clamped ? ' (clamped to range)' : ''}`;
 };
+
+const presetFilterInput = $('presetFilter');
+const presetFilterEmpty = $('presetFilterEmpty');
+presetFilterInput.addEventListener('input', () => {
+  const q = presetFilterInput.value.trim().toLowerCase();
+  let visibleCount = 0;
+  document.querySelectorAll('.preset-row').forEach(row => {
+    const text = row.textContent.toLowerCase();
+    const match = !q || text.includes(q);
+    row.classList.toggle('hidden', !match);
+    if (match) visibleCount++;
+  });
+  presetFilterEmpty.style.display = visibleCount === 0 ? 'block' : 'none';
+});
 
 document.querySelectorAll('.preset-row').forEach(row => {
   row.addEventListener('click', () => {
