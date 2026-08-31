@@ -1,0 +1,1168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Paulstretch Studio — Extreme Ambient Soundscapes</title>
+<style>
+  :root {
+    --bg-dark: #080a0f; --panel-bg: #11141d; --card-bg: #181c28; --card-hover: #212636;
+    --accent: #6366f1; --accent-pink: #ec4899; --accent-hover: #4f46e5;
+    --text-main: #f3f4f6; --text-muted: #9ca3af; --border: #262c3d;
+    --pink-glow: rgba(236, 72, 153, 0.15); --green: #22c55e; --amber: #f59e0b;
+  }
+  * { box-sizing: border-box; user-select: none; -webkit-user-select: none; touch-action: manipulation; }
+  body {
+    margin: 0; padding: 20px; background-color: var(--bg-dark); color: var(--text-main);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    display: flex; justify-content: center; min-height: 100vh;
+  }
+  .app-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; width: 100%; max-width: 1280px; }
+  @media (max-width: 900px) { .app-layout { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel-bg); border-radius: 16px; border: 1px solid var(--border); padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+  h1 { font-size: 1rem; margin: 0 0 4px 0; }
+  .subtitle { font-size: 0.75rem; color: var(--text-muted); margin: -12px 0 4px 0; }
+  .section-label { font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 6px; display: flex; align-items: center; justify-content: space-between; }
+  .section-label .badge { font-size: 0.6rem; padding: 2px 6px; border-radius: 8px; background: var(--card-hover); color: var(--accent-pink); text-transform: none; letter-spacing: 0; }
+
+  .file-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .file-info { font-weight: 600; font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 55%; }
+  .file-btn { background: var(--accent); color: white; padding: 8px 16px; border-radius: 8px; font-size: 0.85rem; cursor: pointer; font-weight: 600; white-space: nowrap; }
+  input[type="file"] { display: none; }
+
+  .waveform-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
+  .waveform-title { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; display: flex; justify-content: space-between; }
+  .canvas-container { height: 84px; width: 100%; background: rgba(0,0,0,0.3); border-radius: 8px; overflow: hidden; position: relative; }
+  canvas { width: 100%; height: 100%; display: block; }
+
+  .trim-row { display: flex; gap: 10px; margin-top: 10px; }
+  .trim-field { flex: 1; }
+  .trim-field label { font-size: 0.7rem; color: var(--text-muted); display: block; margin-bottom: 4px; }
+  .trim-field input { width: 100%; background: rgba(0,0,0,0.3); border: 1px solid var(--border); color: var(--text-main); border-radius: 6px; padding: 6px 8px; font-size: 0.8rem; }
+
+  .presets-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+  .preset-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 12px; cursor: pointer; transition: all 0.15s; }
+  .preset-card:active, .preset-card.active { border-color: var(--accent-pink); background: var(--pink-glow); }
+  .preset-tag { font-size: 0.65rem; color: var(--accent-pink); text-transform: uppercase; font-weight: 700; margin-bottom: 4px; }
+  .preset-title { font-size: 0.85rem; font-weight: 600; }
+  .preset-sub { font-size: 0.65rem; color: var(--text-muted); margin-top: 2px; }
+
+  .control-group { background: var(--card-bg); padding: 14px; border-radius: 10px; border: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
+  .control-header { display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--text-muted); }
+  .control-header span.val { color: var(--text-main); font-weight: 600; }
+  input[type="range"] { -webkit-appearance: none; width: 100%; height: 6px; background: var(--border); border-radius: 3px; outline: none; }
+  input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: var(--accent-pink); cursor: pointer; }
+  select, input[type="number"], input[type="text"] { width: 100%; background: rgba(0,0,0,0.3); border: 1px solid var(--border); color: var(--text-main); border-radius: 6px; padding: 8px; font-size: 0.85rem; }
+  .checkbox-row { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--text-muted); }
+  .checkbox-row input { width: 16px; height: 16px; }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+
+  .action-row { display: flex; gap: 10px; }
+  button.big-btn { border: none; color: white; padding: 15px; border-radius: 12px; font-size: 0.9rem; font-weight: 700; cursor: pointer; width: 100%; touch-action: manipulation; }
+  .btn-process { background: linear-gradient(135deg, #6366f1, #ec4899); }
+  .btn-freeze { background: linear-gradient(135deg, #0ea5e9, #6366f1); }
+  .btn-play { background: var(--green); }
+  .btn-stop { background: #ef4444; }
+  .btn-download { background: var(--card-hover); border: 1px solid var(--border) !important; }
+  .btn-sync { background: var(--amber); color: #1a1200; }
+  button.big-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  .progress-wrap { display: none; flex-direction: column; gap: 6px; }
+  .progress-wrap.active { display: flex; }
+  .progress-bar-bg { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
+  .progress-bar-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #6366f1, #ec4899); transition: width 0.1s linear; }
+  .progress-label { font-size: 0.75rem; color: var(--text-muted); text-align: center; }
+
+  .status-pill { font-size: 0.7rem; padding: 2px 8px; border-radius: 20px; background: var(--border); color: var(--text-muted); }
+  .hint { font-size: 0.68rem; color: var(--text-muted); line-height: 1.4; }
+  .collapsible-body { display: flex; flex-direction: column; gap: 10px; }
+  .collapsible-body.hidden { display: none; }
+</style>
+</head>
+<body>
+
+<div class="app-layout">
+  <!-- Left Column -->
+  <div class="panel">
+    <div>
+      <h1>Paulstretch Studio</h1>
+      <div class="subtitle">Extreme spectral time-stretching + modern DSP extensions</div>
+    </div>
+
+    <div class="file-card">
+      <div class="file-info" id="fileNameDisplay">No file loaded</div>
+      <label for="audioFile" class="file-btn">Import Audio</label>
+      <input type="file" id="audioFile" accept=".wav,.mp3,.m4a,.aac,.flac,audio/*">
+    </div>
+
+    <div class="waveform-card">
+      <div class="waveform-title"><span>Source Audio</span><span id="durationDisplay">0:00</span></div>
+      <div class="canvas-container"><canvas id="sourceCanvas"></canvas></div>
+      <div class="trim-row">
+        <div class="trim-field"><label>Trim Start (s)</label><input type="number" id="trimStart" value="0" min="0" step="0.1"></div>
+        <div class="trim-field"><label>Trim End (s, blank = full)</label><input type="number" id="trimEnd" placeholder="full length" min="0" step="0.1"></div>
+      </div>
+    </div>
+
+    <div class="waveform-card">
+      <div class="waveform-title">
+        <span>Stretched Output</span>
+        <span class="status-pill" id="statusDisplay">Idle</span>
+      </div>
+      <div class="canvas-container"><canvas id="outputCanvas"></canvas></div>
+    </div>
+
+    <div class="progress-wrap" id="progressWrap">
+      <div class="progress-bar-bg"><div class="progress-bar-fill" id="progressFill"></div></div>
+      <div class="progress-label" id="progressLabel">Processing frame 0 / 0</div>
+    </div>
+
+    <div class="action-row">
+      <button class="big-btn btn-process" id="processBtn" disabled>Render Soundscape</button>
+      <button class="big-btn btn-freeze" id="freezeBtn" disabled>Render Freeze Drone</button>
+    </div>
+    <div class="action-row">
+      <button class="big-btn btn-play" id="playBtn" disabled>Play</button>
+      <button class="big-btn btn-stop" id="stopBtn" disabled>Stop</button>
+    </div>
+    <div class="action-row">
+      <button class="big-btn btn-download" id="downloadBtn" disabled>Download WAV</button>
+    </div>
+
+    <div class="section-label">Tempo Sync Calculator</div>
+    <div class="control-group">
+      <div class="hint">Browsers can't read a host's transport, so this computes the stretch ratio needed to turn your trimmed clip into an exact bar-length loop at a given BPM — then sets the Stretch Factor for you.</div>
+      <div class="three-col">
+        <div><label class="hint">BPM</label><input type="number" id="bpmInput" value="120" min="20" max="300" step="0.1"></div>
+        <div><label class="hint">Beats/Bar</label><input type="number" id="beatsPerBar" value="4" min="1" max="16" step="1"></div>
+        <div><label class="hint">Target Bars</label>
+          <select id="targetBars">
+            <option value="1">1</option><option value="2">2</option>
+            <option value="4" selected>4</option><option value="8">8</option>
+            <option value="16">16</option><option value="32">32</option>
+          </select>
+        </div>
+      </div>
+      <button class="big-btn btn-sync" id="syncBtn" style="margin-top:4px;">Sync Stretch to Bars</button>
+      <div class="progress-label" id="syncResult"></div>
+    </div>
+  </div>
+
+  <!-- Right Column -->
+  <div class="panel">
+    <div class="section-label">Styles &amp; Presets</div>
+    <div class="presets-grid">
+      <div class="preset-card active" data-stretch="8" data-window="8192" data-phase="1.0" data-wtype="hann">
+        <div class="preset-tag">Ethereal</div><div class="preset-title">Dreamy Choir</div>
+        <div class="preset-sub">8x · balanced</div>
+      </div>
+      <div class="preset-card" data-stretch="30" data-window="32768" data-phase="1.0" data-wtype="blackman">
+        <div class="preset-tag">Dark</div><div class="preset-title">Abyss Drone</div>
+        <div class="preset-sub">30x · huge window</div>
+      </div>
+      <div class="preset-card" data-stretch="4" data-window="2048" data-phase="0.5" data-wtype="hamming">
+        <div class="preset-tag">Lo-Fi</div><div class="preset-title">Tape Ghost</div>
+        <div class="preset-sub">4x · partial smear</div>
+      </div>
+      <div class="preset-card" data-stretch="60" data-window="65536" data-phase="1.0" data-wtype="blackman">
+        <div class="preset-tag">Cosmic</div><div class="preset-title">Deep Space</div>
+        <div class="preset-sub">60x · max smear</div>
+      </div>
+      <div class="preset-card" data-stretch="14" data-window="16384" data-phase="0.85" data-wtype="hann">
+        <div class="preset-tag">Cinematic</div><div class="preset-title">Horror Pad</div>
+        <div class="preset-sub">14x · slight grit</div>
+      </div>
+      <div class="preset-card" data-stretch="3" data-window="4096" data-phase="0.25" data-wtype="hann">
+        <div class="preset-tag">Subtle</div><div class="preset-title">Slow Swell</div>
+        <div class="preset-sub">3x · mostly intact</div>
+      </div>
+    </div>
+
+    <div class="section-label">Stretch Engine</div>
+    <div class="control-group">
+      <div class="control-header"><span>Stretch Factor</span><span class="val" id="stretchVal">8.0x</span></div>
+      <input type="range" id="stretch" min="1" max="100" step="0.5" value="8">
+    </div>
+    <div class="two-col">
+      <div class="control-group">
+        <div class="control-header"><span>FFT Window Size</span></div>
+        <select id="windowSize">
+          <option value="2048">2048 (crisp)</option>
+          <option value="4096">4096</option>
+          <option value="8192" selected>8192</option>
+          <option value="16384">16384</option>
+          <option value="32768">32768 (smooth)</option>
+          <option value="65536">65536 (huge)</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <div class="control-header"><span>Window Type</span></div>
+        <select id="windowType">
+          <option value="hann" selected>Hann</option>
+          <option value="hamming">Hamming</option>
+          <option value="blackman">Blackman</option>
+          <option value="gaussian">Gaussian</option>
+        </select>
+      </div>
+    </div>
+    <div class="control-group">
+      <div class="control-header"><span>Phase Randomization (Smear)</span><span class="val" id="phaseVal">100%</span></div>
+      <input type="range" id="phase" min="0" max="1" step="0.01" value="1">
+      <div class="hint">0% = original phase relationships kept (clear, articulate). 100% = fully randomized (classic diffuse Paulstretch pad). Low values act like partial phase-locking, preserving more of the source's timbral clarity.</div>
+    </div>
+    <div class="control-group">
+      <div class="checkbox-row"><input type="checkbox" id="stereoWiden" checked><label for="stereoWiden">Process channels independently (stereo widen)</label></div>
+    </div>
+
+    <div class="section-label">Window Morphing <span class="badge">LFO</span></div>
+    <div class="control-group">
+      <div class="checkbox-row"><input type="checkbox" id="morphEnabled"><label for="morphEnabled">Morph between two window shapes over time</label></div>
+      <div class="two-col">
+        <div>
+          <label class="hint">Window B</label>
+          <select id="windowTypeB">
+            <option value="hann">Hann</option>
+            <option value="hamming">Hamming</option>
+            <option value="blackman" selected>Blackman</option>
+            <option value="gaussian">Gaussian</option>
+          </select>
+        </div>
+        <div>
+          <label class="hint">Morph Rate (Hz)</label>
+          <input type="range" id="morphRate" min="0.02" max="2" step="0.01" value="0.15">
+        </div>
+      </div>
+      <div class="hint">Slowly crossfades the analysis/synthesis window between Window Type and Window B (e.g. sharp Hann &rarr; soft Blackman), shifting texture from resonant to smooth over the render.</div>
+    </div>
+
+    <div class="section-label">Spectral Shaping <span class="badge">magnitude-domain</span></div>
+    <div class="control-group">
+      <div class="three-col">
+        <div><div class="control-header"><span>Low</span></div><input type="range" id="eqLow" min="-24" max="24" step="1" value="0"><div class="progress-label" id="eqLowVal">0 dB</div></div>
+        <div><div class="control-header"><span>Mid</span></div><input type="range" id="eqMid" min="-24" max="24" step="1" value="0"><div class="progress-label" id="eqMidVal">0 dB</div></div>
+        <div><div class="control-header"><span>High</span></div><input type="range" id="eqHigh" min="-24" max="24" step="1" value="0"><div class="progress-label" id="eqHighVal">0 dB</div></div>
+      </div>
+      <div class="two-col">
+        <div><label class="hint">Low/Mid Xover (Hz)</label><input type="number" id="eqXover1" value="400" min="50" max="4000"></div>
+        <div><label class="hint">Mid/High Xover (Hz)</label><input type="number" id="eqXover2" value="4000" min="500" max="18000"></div>
+      </div>
+      <div class="hint">Reshapes the magnitude spectrum before phase randomization and re-synthesis — a real spectral EQ, not a post-filter.</div>
+    </div>
+    <div class="control-group">
+      <div class="control-header"><span>Formant Shift</span><span class="val" id="formantVal">1.00x</span></div>
+      <input type="range" id="formant" min="0.5" max="2" step="0.01" value="1">
+      <div class="hint">Resamples the magnitude spectrum along frequency. &lt;1x lowers formants (bigger/darker body), &gt;1x raises them (smaller/brighter body) while the stretch/pitch engine stays untouched.</div>
+    </div>
+
+    <div class="section-label">Frequency-Selective Stretch <span class="badge">multiband</span></div>
+    <div class="control-group">
+      <div class="checkbox-row"><input type="checkbox" id="multibandEnabled"><label for="multibandEnabled">Stretch bands at different ratios</label></div>
+      <div class="collapsible-body" id="multibandBody">
+        <div class="two-col">
+          <div><label class="hint">Low/Mid Xover (Hz)</label><input type="number" id="mbXover1" value="300" min="50" max="4000"></div>
+          <div><label class="hint">Mid/High Xover (Hz)</label><input type="number" id="mbXover2" value="3000" min="500" max="18000"></div>
+        </div>
+        <div class="control-header"><span>Low Band Stretch</span><span class="val" id="mbLowVal">2.0x</span></div>
+        <input type="range" id="mbLowStretch" min="1" max="100" step="0.5" value="2">
+        <div class="control-header"><span>Mid Band Stretch</span><span class="val" id="mbMidVal">8.0x</span></div>
+        <input type="range" id="mbMidStretch" min="1" max="100" step="0.5" value="8">
+        <div class="control-header"><span>High Band Stretch</span><span class="val" id="mbHighVal">40.0x</span></div>
+        <input type="range" id="mbHighStretch" min="1" max="100" step="0.5" value="40">
+        <div class="hint">Keeps the low end tight (e.g. 2x) while pushing highs into a smeared wash (e.g. 40x) — bands are filter-split, stretched independently, then summed.</div>
+      </div>
+    </div>
+
+    <div class="section-label">Transient Preservation <span class="badge">dual-path</span></div>
+    <div class="control-group">
+      <div class="checkbox-row"><input type="checkbox" id="transientEnabled"><label for="transientEnabled">Detect &amp; keep attacks rhythmic</label></div>
+      <div class="collapsible-body" id="transientBody">
+        <div class="control-header"><span>Detector Sensitivity</span><span class="val" id="transSensVal">50%</span></div>
+        <input type="range" id="transSens" min="0.1" max="0.9" step="0.02" value="0.5">
+        <div class="control-header"><span>Transient Layer Level</span><span class="val" id="transGainVal">80%</span></div>
+        <input type="range" id="transGain" min="0" max="1.5" step="0.05" value="0.8">
+        <div class="hint">Detects sharp attacks (drum hits, plucks) via spectral-flux onset detection, ducks them out of the signal that feeds the stretch engine, then re-inserts the raw hits at their new (stretched) time positions — so the beat stays a sparse pulse over the pad instead of smearing into noise.</div>
+      </div>
+    </div>
+
+    <div class="section-label">Freeze / Spectral Synth</div>
+    <div class="control-group">
+      <div class="control-header"><span>Freeze Position</span><span class="val" id="freezePosVal">0%</span></div>
+      <input type="range" id="freezePos" min="0" max="100" step="1" value="0">
+      <div class="control-header"><span>Freeze Duration</span><span class="val" id="freezeDurVal">20s</span></div>
+      <input type="range" id="freezeDur" min="5" max="120" step="1" value="20">
+      <div class="hint">Locks onto one instant of the source's spectrum and continuously re-synthesizes it with fresh random phases — turning that single moment into a playable, ever-shifting infinite drone.</div>
+    </div>
+
+    <div class="section-label">Live Shaping (playback only)</div>
+    <div class="control-group">
+      <div class="control-header"><span>Low-Pass Cutoff</span><span class="val" id="lpVal">18000 Hz</span></div>
+      <input type="range" id="lowpass" min="200" max="18000" step="50" value="18000">
+    </div>
+    <div class="control-group">
+      <div class="control-header"><span>High-Pass Cutoff</span><span class="val" id="hpVal">20 Hz</span></div>
+      <input type="range" id="highpass" min="20" max="2000" step="10" value="20">
+    </div>
+    <div class="control-group">
+      <div class="control-header"><span>Reverb Space</span><span class="val" id="reverbVal">40%</span></div>
+      <input type="range" id="reverb" min="0" max="0.9" step="0.05" value="0.4">
+    </div>
+    <div class="control-group">
+      <div class="control-header"><span>Output Volume</span><span class="val" id="volVal">80%</span></div>
+      <input type="range" id="volume" min="0" max="1" step="0.05" value="0.8">
+    </div>
+  </div>
+</div>
+
+<script>
+// ---------------------------------------------------------------------------
+// State
+// ---------------------------------------------------------------------------
+let audioCtx = null;
+let sourceBuffer = null;
+let stretchedChannels = null;
+let stretchedSampleRate = 44100;
+let liveNodes = null;
+let isPlaying = false;
+
+const $ = id => document.getElementById(id);
+
+const fileInput = $('audioFile');
+const fileNameDisplay = $('fileNameDisplay');
+const durationDisplay = $('durationDisplay');
+const statusDisplay = $('statusDisplay');
+const processBtn = $('processBtn');
+const freezeBtn = $('freezeBtn');
+const playBtn = $('playBtn');
+const stopBtn = $('stopBtn');
+const downloadBtn = $('downloadBtn');
+const progressWrap = $('progressWrap');
+const progressFill = $('progressFill');
+const progressLabel = $('progressLabel');
+
+const sourceCanvas = $('sourceCanvas');
+const outputCanvas = $('outputCanvas');
+const srcCtx = sourceCanvas.getContext('2d');
+const outCtx = outputCanvas.getContext('2d');
+
+const stretchInput = $('stretch');
+const windowSizeInput = $('windowSize');
+const windowTypeInput = $('windowType');
+const phaseInput = $('phase');
+const stereoWidenInput = $('stereoWiden');
+const trimStartInput = $('trimStart');
+const trimEndInput = $('trimEnd');
+
+const morphEnabledInput = $('morphEnabled');
+const windowTypeBInput = $('windowTypeB');
+const morphRateInput = $('morphRate');
+
+const eqLowInput = $('eqLow'), eqMidInput = $('eqMid'), eqHighInput = $('eqHigh');
+const eqXover1Input = $('eqXover1'), eqXover2Input = $('eqXover2');
+const formantInput = $('formant');
+
+const multibandEnabledInput = $('multibandEnabled');
+const multibandBody = $('multibandBody');
+const mbXover1Input = $('mbXover1'), mbXover2Input = $('mbXover2');
+const mbLowStretchInput = $('mbLowStretch'), mbMidStretchInput = $('mbMidStretch'), mbHighStretchInput = $('mbHighStretch');
+
+const transientEnabledInput = $('transientEnabled');
+const transientBody = $('transientBody');
+const transSensInput = $('transSens');
+const transGainInput = $('transGain');
+
+const freezePosInput = $('freezePos');
+const freezeDurInput = $('freezeDur');
+
+const lowpassInput = $('lowpass');
+const highpassInput = $('highpass');
+const reverbInput = $('reverb');
+const volumeInput = $('volume');
+
+const bpmInput = $('bpmInput');
+const beatsPerBarInput = $('beatsPerBar');
+const targetBarsInput = $('targetBars');
+const syncBtn = $('syncBtn');
+const syncResult = $('syncResult');
+
+// ---------------------------------------------------------------------------
+// UI wiring
+// ---------------------------------------------------------------------------
+stretchInput.oninput = e => $('stretchVal').textContent = `${parseFloat(e.target.value).toFixed(1)}x`;
+phaseInput.oninput = e => $('phaseVal').textContent = `${Math.round(e.target.value * 100)}%`;
+lowpassInput.oninput = e => { $('lpVal').textContent = `${e.target.value} Hz`; updateLiveFilters(); };
+highpassInput.oninput = e => { $('hpVal').textContent = `${e.target.value} Hz`; updateLiveFilters(); };
+reverbInput.oninput = e => { $('reverbVal').textContent = `${Math.round(e.target.value * 100)}%`; updateLiveFilters(); };
+volumeInput.oninput = e => { $('volVal').textContent = `${Math.round(e.target.value * 100)}%`; updateLiveFilters(); };
+eqLowInput.oninput = e => $('eqLowVal').textContent = `${e.target.value} dB`;
+eqMidInput.oninput = e => $('eqMidVal').textContent = `${e.target.value} dB`;
+eqHighInput.oninput = e => $('eqHighVal').textContent = `${e.target.value} dB`;
+formantInput.oninput = e => $('formantVal').textContent = `${parseFloat(e.target.value).toFixed(2)}x`;
+mbLowStretchInput.oninput = e => $('mbLowVal').textContent = `${parseFloat(e.target.value).toFixed(1)}x`;
+mbMidStretchInput.oninput = e => $('mbMidVal').textContent = `${parseFloat(e.target.value).toFixed(1)}x`;
+mbHighStretchInput.oninput = e => $('mbHighVal').textContent = `${parseFloat(e.target.value).toFixed(1)}x`;
+transSensInput.oninput = e => $('transSensVal').textContent = `${Math.round(e.target.value * 100)}%`;
+transGainInput.oninput = e => $('transGainVal').textContent = `${Math.round(e.target.value * 100)}%`;
+freezePosInput.oninput = e => $('freezePosVal').textContent = `${e.target.value}%`;
+freezeDurInput.oninput = e => $('freezeDurVal').textContent = `${e.target.value}s`;
+
+multibandEnabledInput.onchange = e => multibandBody.classList.toggle('hidden', !e.target.checked);
+transientEnabledInput.onchange = e => transientBody.classList.toggle('hidden', !e.target.checked);
+multibandBody.classList.add('hidden');
+transientBody.classList.add('hidden');
+
+syncBtn.onclick = () => {
+  if (!sourceBuffer) { syncResult.textContent = 'Load audio first.'; return; }
+  const tStart = Math.max(0, parseFloat(trimStartInput.value) || 0);
+  let tEnd = trimEndInput.value === '' ? sourceBuffer.duration : parseFloat(trimEndInput.value);
+  if (isNaN(tEnd) || tEnd <= tStart) tEnd = sourceBuffer.duration;
+  const clipLen = tEnd - tStart;
+  const bpm = parseFloat(bpmInput.value) || 120;
+  const beatsPerBar = parseInt(beatsPerBarInput.value, 10) || 4;
+  const bars = parseInt(targetBarsInput.value, 10);
+  const targetSeconds = bars * beatsPerBar * (60 / bpm);
+  const ratio = targetSeconds / clipLen;
+  const clamped = Math.max(1, Math.min(100, ratio));
+  stretchInput.value = clamped.toFixed(1);
+  stretchInput.oninput({ target: stretchInput });
+  syncResult.textContent = `${clipLen.toFixed(2)}s clip -> ${targetSeconds.toFixed(2)}s (${bars} bars @ ${bpm} BPM) = ${ratio.toFixed(2)}x stretch${ratio !== clamped ? ' (clamped to range)' : ''}`;
+};
+
+document.querySelectorAll('.preset-card').forEach(card => {
+  card.addEventListener('click', () => {
+    document.querySelectorAll('.preset-card').forEach(c => c.classList.remove('active'));
+    card.classList.add('active');
+    stretchInput.value = card.dataset.stretch;
+    windowSizeInput.value = card.dataset.window;
+    phaseInput.value = card.dataset.phase;
+    windowTypeInput.value = card.dataset.wtype;
+    stretchInput.oninput({ target: stretchInput });
+    phaseInput.oninput({ target: phaseInput });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// File import
+// ---------------------------------------------------------------------------
+fileInput.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  fileNameDisplay.textContent = file.name;
+  statusDisplay.textContent = 'Loading...';
+  resetOutput();
+
+  const reader = new FileReader();
+  reader.onload = function (evt) {
+    initAudioContext();
+    audioCtx.decodeAudioData(evt.target.result, (buffer) => {
+      sourceBuffer = buffer;
+      const mins = Math.floor(buffer.duration / 60);
+      const secs = Math.floor(buffer.duration % 60).toString().padStart(2, '0');
+      durationDisplay.textContent = `${mins}:${secs}`;
+      statusDisplay.textContent = 'Ready';
+      trimStartInput.value = 0;
+      trimEndInput.value = '';
+      trimEndInput.placeholder = buffer.duration.toFixed(1) + 's (full)';
+      drawWaveform(sourceCanvas, srcCtx, buffer.getChannelData(0), '#6366f1');
+      outCtx.clearRect(0, 0, outputCanvas.width, outputCanvas.height);
+      processBtn.disabled = false;
+      freezeBtn.disabled = false;
+    }, (err) => {
+      console.error('Decode Error:', err);
+      statusDisplay.textContent = 'Decode Failed';
+      fileNameDisplay.textContent = 'Try another format';
+    });
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+function initAudioContext() {
+  if (!audioCtx) {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    audioCtx = new AudioContextClass();
+  }
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+function resetOutput() {
+  stretchedChannels = null;
+  playBtn.disabled = true;
+  downloadBtn.disabled = true;
+  statusDisplay.textContent = 'Ready';
+}
+
+// ---------------------------------------------------------------------------
+// Waveform drawing
+// ---------------------------------------------------------------------------
+function drawWaveform(canvas, ctx, data, color) {
+  const width = canvas.width = canvas.parentElement.clientWidth;
+  const height = canvas.height = canvas.parentElement.clientHeight;
+  const step = Math.max(1, Math.ceil(data.length / width));
+  const amp = height / 2;
+  ctx.clearRect(0, 0, width, height);
+  ctx.beginPath();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.5;
+  for (let i = 0; i < width; i++) {
+    let min = 1.0, max = -1.0;
+    const base = i * step;
+    for (let j = 0; j < step; j++) {
+      const idx = base + j;
+      if (idx >= data.length) break;
+      const datum = data[idx];
+      if (datum < min) min = datum;
+      if (datum > max) max = datum;
+    }
+    if (min > max) { min = 0; max = 0; }
+    ctx.moveTo(i, (1 + min) * amp);
+    ctx.lineTo(i, (1 + max) * amp);
+  }
+  ctx.stroke();
+}
+
+// ---------------------------------------------------------------------------
+// Minimal iterative radix-2 complex FFT (power-of-two sizes only)
+// ---------------------------------------------------------------------------
+class FFT {
+  constructor(size) {
+    this.size = size;
+    this.levels = Math.round(Math.log2(size));
+    if (1 << this.levels !== size) throw new Error('FFT size must be a power of 2');
+    this.cosTable = new Float64Array(size / 2);
+    this.sinTable = new Float64Array(size / 2);
+    for (let i = 0; i < size / 2; i++) {
+      this.cosTable[i] = Math.cos(2 * Math.PI * i / size);
+      this.sinTable[i] = Math.sin(2 * Math.PI * i / size);
+    }
+    this.bitReversedIndices = new Uint32Array(size);
+    for (let i = 0; i < size; i++) {
+      let rev = 0, x = i;
+      for (let b = 0; b < this.levels; b++) { rev = (rev << 1) | (x & 1); x >>= 1; }
+      this.bitReversedIndices[i] = rev;
+    }
+  }
+  transform(real, imag, inverse) {
+    const n = this.size;
+    const bri = this.bitReversedIndices;
+    for (let i = 0; i < n; i++) {
+      const j = bri[i];
+      if (j > i) {
+        let t = real[i]; real[i] = real[j]; real[j] = t;
+        t = imag[i]; imag[i] = imag[j]; imag[j] = t;
+      }
+    }
+    for (let size = 2; size <= n; size *= 2) {
+      const halfsize = size / 2;
+      const tablestep = n / size;
+      for (let i = 0; i < n; i += size) {
+        for (let j = i, k = 0; j < i + halfsize; j++, k += tablestep) {
+          const cos = this.cosTable[k];
+          const sin = inverse ? -this.sinTable[k] : this.sinTable[k];
+          const l = j + halfsize;
+          const tre = real[l] * cos - imag[l] * sin;
+          const tim = real[l] * sin + imag[l] * cos;
+          real[l] = real[j] - tre;
+          imag[l] = imag[j] - tim;
+          real[j] += tre;
+          imag[j] += tim;
+        }
+      }
+    }
+    if (inverse) { for (let i = 0; i < n; i++) { real[i] /= n; imag[i] /= n; } }
+  }
+  forward(real, imag) { this.transform(real, imag, false); }
+  inverse(real, imag) { this.transform(real, imag, true); }
+}
+const fftCache = {};
+function getFFT(size) { if (!fftCache[size]) fftCache[size] = new FFT(size); return fftCache[size]; }
+
+function generateWindow(type, N) {
+  const w = new Float64Array(N);
+  for (let i = 0; i < N; i++) {
+    if (type === 'hamming') w[i] = 0.54 - 0.46 * Math.cos(2 * Math.PI * i / (N - 1));
+    else if (type === 'blackman') w[i] = 0.42 - 0.5 * Math.cos(2 * Math.PI * i / (N - 1)) + 0.08 * Math.cos(4 * Math.PI * i / (N - 1));
+    else if (type === 'gaussian') { const sigma = 0.4; const c = (N - 1) / 2; w[i] = Math.exp(-0.5 * Math.pow((i - c) / (sigma * c), 2)); }
+    else w[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (N - 1)); // hann
+  }
+  return w;
+}
+
+function dbToLinear(db) { return Math.pow(10, db / 20); }
+function smoothstep(edge0, edge1, x) {
+  if (edge0 === edge1) return x < edge0 ? 0 : 1;
+  const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+  return t * t * (3 - 2 * t);
+}
+function makeEqGainFn(lowDb, midDb, highDb, xover1, xover2) {
+  const lowLin = dbToLinear(lowDb), midLin = dbToLinear(midDb), highLin = dbToLinear(highDb);
+  const band1 = xover1 * 0.3, band2 = xover2 * 0.3;
+  return (freq) => {
+    if (freq <= xover1 - band1) return lowLin;
+    if (freq <= xover1 + band1) { const t = smoothstep(xover1 - band1, xover1 + band1, freq); return lowLin * (1 - t) + midLin * t; }
+    if (freq <= xover2 - band2) return midLin;
+    if (freq <= xover2 + band2) { const t = smoothstep(xover2 - band2, xover2 + band2, freq); return midLin * (1 - t) + highLin * t; }
+    return highLin;
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Core Paulstretch engine (spectral EQ, formant shift, window morph, phase blend)
+// ---------------------------------------------------------------------------
+async function stretchBuffer(input, sampleRate, opts, onProgress) {
+  const {
+    stretch, windowSize, windowType, windowTypeB, morphEnabled, morphRateHz,
+    phaseAmount, formantShift, eqGainFn
+  } = opts;
+
+  const winA = generateWindow(windowType, windowSize);
+  const winB = morphEnabled ? generateWindow(windowTypeB, windowSize) : null;
+  const half = windowSize / 2;
+  const hopOut = half;
+  const hopIn = hopOut / stretch;
+  const totalFrames = Math.ceil(input.length / hopIn) + 1;
+  const outLength = Math.ceil(totalFrames * hopOut) + windowSize;
+  const output = new Float64Array(outLength);
+  const fft = getFFT(windowSize);
+
+  const real = new Float64Array(windowSize);
+  const imag = new Float64Array(windowSize);
+  const magArr = new Float64Array(half + 1);
+  const shiftedMag = new Float64Array(half + 1);
+  let win = winA;
+
+  let inputPos = 0;
+  let frame = 0;
+  let lastYield = performance.now();
+
+  while (inputPos < input.length) {
+    if (morphEnabled) {
+      const t = frame * (hopOut / sampleRate);
+      const blend = 0.5 + 0.5 * Math.sin(2 * Math.PI * morphRateHz * t);
+      win = new Float64Array(windowSize);
+      for (let i = 0; i < windowSize; i++) win[i] = winA[i] * (1 - blend) + winB[i] * blend;
+    }
+
+    const start = Math.floor(inputPos);
+    for (let i = 0; i < windowSize; i++) {
+      const idx = start + i;
+      real[i] = (idx < input.length ? input[idx] : 0) * win[i];
+      imag[i] = 0;
+    }
+    fft.forward(real, imag);
+
+    for (let i = 0; i <= half; i++) {
+      let mag = Math.sqrt(real[i] * real[i] + imag[i] * imag[i]);
+      if (eqGainFn) mag *= eqGainFn(i * sampleRate / windowSize);
+      magArr[i] = mag;
+    }
+    if (formantShift !== 1) {
+      for (let i = 0; i <= half; i++) {
+        const srcIdx = i / formantShift;
+        const i0 = Math.floor(srcIdx), i1 = i0 + 1, frac = srcIdx - i0;
+        const m0 = i0 <= half ? magArr[i0] : 0;
+        const m1 = i1 <= half ? magArr[i1] : 0;
+        shiftedMag[i] = i0 <= half ? m0 * (1 - frac) + m1 * frac : 0;
+      }
+    } else {
+      shiftedMag.set(magArr);
+    }
+
+    for (let i = 0; i <= half; i++) {
+      const origPhase = Math.atan2(imag[i], real[i]);
+      const randPhase = (Math.random() * 2 - 1) * Math.PI;
+      const phase = origPhase * (1 - phaseAmount) + randPhase * phaseAmount;
+      const mag = shiftedMag[i];
+      real[i] = mag * Math.cos(phase);
+      imag[i] = mag * Math.sin(phase);
+      if (i > 0 && i < half) {
+        real[windowSize - i] = real[i];
+        imag[windowSize - i] = -imag[i];
+      }
+    }
+    fft.inverse(real, imag);
+
+    const outStart = Math.round(frame * hopOut);
+    for (let i = 0; i < windowSize; i++) output[outStart + i] += real[i] * win[i];
+
+    inputPos += hopIn;
+    frame++;
+
+    if (performance.now() - lastYield > 40) {
+      onProgress(Math.min(1, inputPos / input.length));
+      await new Promise(r => setTimeout(r, 0));
+      lastYield = performance.now();
+    }
+  }
+  onProgress(1);
+
+  let peak = 0;
+  for (let i = 0; i < output.length; i++) { const a = Math.abs(output[i]); if (a > peak) peak = a; }
+  const scale = peak > 0 ? 0.9 / peak : 1;
+  const result = new Float32Array(output.length);
+  for (let i = 0; i < output.length; i++) result[i] = output[i] * scale;
+  return result;
+}
+
+// Freeze: same engine, but the analysis position never advances -- it keeps
+// re-synthesizing one fixed spectral frame with fresh random phases each hop.
+async function freezeBuffer(input, sampleRate, positionSample, windowSize, windowType, phaseAmount, durationSec, onProgress) {
+  const win = generateWindow(windowType, windowSize);
+  const half = windowSize / 2;
+  const hopOut = half;
+  const totalFrames = Math.ceil((durationSec * sampleRate) / hopOut) + 2;
+  const outLength = totalFrames * hopOut + windowSize;
+  const output = new Float64Array(outLength);
+  const fft = getFFT(windowSize);
+  const real = new Float64Array(windowSize);
+  const imag = new Float64Array(windowSize);
+
+  const baseReal = new Float64Array(windowSize);
+  for (let i = 0; i < windowSize; i++) {
+    const idx = positionSample + i;
+    baseReal[i] = (idx < input.length && idx >= 0 ? input[idx] : 0) * win[i];
+  }
+  const anaReal = baseReal.slice();
+  const anaImag = new Float64Array(windowSize);
+  fft.forward(anaReal, anaImag);
+  const half1 = windowSize / 2;
+  const mag = new Float64Array(half1 + 1);
+  for (let i = 0; i <= half1; i++) mag[i] = Math.sqrt(anaReal[i] * anaReal[i] + anaImag[i] * anaImag[i]);
+
+  let lastYield = performance.now();
+  for (let frame = 0; frame < totalFrames; frame++) {
+    for (let i = 0; i <= half1; i++) {
+      const phase = (Math.random() * 2 - 1) * Math.PI * phaseAmount;
+      real[i] = mag[i] * Math.cos(phase);
+      imag[i] = mag[i] * Math.sin(phase);
+      if (i > 0 && i < half1) { real[windowSize - i] = real[i]; imag[windowSize - i] = -imag[i]; }
+    }
+    fft.inverse(real, imag);
+    const outStart = frame * hopOut;
+    for (let i = 0; i < windowSize; i++) output[outStart + i] += real[i] * win[i];
+
+    if (performance.now() - lastYield > 40) {
+      onProgress(frame / totalFrames);
+      await new Promise(r => setTimeout(r, 0));
+      lastYield = performance.now();
+    }
+  }
+  onProgress(1);
+
+  let peak = 0;
+  for (let i = 0; i < output.length; i++) { const a = Math.abs(output[i]); if (a > peak) peak = a; }
+  const scale = peak > 0 ? 0.9 / peak : 1;
+  const result = new Float32Array(output.length);
+  for (let i = 0; i < output.length; i++) result[i] = output[i] * scale;
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Band splitting (for frequency-selective / multiband stretch) via OfflineAudioContext
+// ---------------------------------------------------------------------------
+async function renderBandFiltered(sourceArr, sampleRate, filterSpecs) {
+  const OfflineCtx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+  const offline = new OfflineCtx(1, sourceArr.length, sampleRate);
+  const buf = offline.createBuffer(1, sourceArr.length, sampleRate);
+  buf.copyToChannel(sourceArr, 0);
+  const src = offline.createBufferSource();
+  src.buffer = buf;
+  let node = src;
+  for (const spec of filterSpecs) {
+    const f = offline.createBiquadFilter();
+    f.type = spec.type;
+    f.frequency.value = spec.freq;
+    if (spec.q) f.Q.value = spec.q;
+    node.connect(f);
+    node = f;
+  }
+  node.connect(offline.destination);
+  src.start(0);
+  const rendered = await offline.startRendering();
+  return rendered.getChannelData(0).slice();
+}
+
+async function splitIntoBands(channelArr, sampleRate, xover1, xover2) {
+  const low = await renderBandFiltered(channelArr, sampleRate, [
+    { type: 'lowpass', freq: xover1, q: 0.707 }, { type: 'lowpass', freq: xover1, q: 0.707 }
+  ]);
+  const mid = await renderBandFiltered(channelArr, sampleRate, [
+    { type: 'highpass', freq: xover1, q: 0.707 }, { type: 'highpass', freq: xover1, q: 0.707 },
+    { type: 'lowpass', freq: xover2, q: 0.707 }, { type: 'lowpass', freq: xover2, q: 0.707 }
+  ]);
+  const high = await renderBandFiltered(channelArr, sampleRate, [
+    { type: 'highpass', freq: xover2, q: 0.707 }, { type: 'highpass', freq: xover2, q: 0.707 }
+  ]);
+  return { low, mid, high };
+}
+
+function sumPadded(arrays) {
+  const maxLen = Math.max(...arrays.map(a => a.length));
+  const out = new Float64Array(maxLen);
+  for (const a of arrays) for (let i = 0; i < a.length; i++) out[i] += a[i];
+  let peak = 0;
+  for (let i = 0; i < out.length; i++) { const v = Math.abs(out[i]); if (v > peak) peak = v; }
+  const scale = peak > 0 ? 0.9 / peak : 1;
+  const result = new Float32Array(maxLen);
+  for (let i = 0; i < out.length; i++) result[i] = out[i] * scale;
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Transient detection (spectral-flux onset detector) + dual-path split
+// ---------------------------------------------------------------------------
+function detectOnsets(channelArr, sampleRate, sensitivity) {
+  const frameSize = 1024, hop = 512;
+  const win = generateWindow('hann', frameSize);
+  const fft = getFFT(frameSize);
+  const numFrames = Math.floor((channelArr.length - frameSize) / hop);
+  let prevMag = new Float64Array(frameSize / 2);
+  const flux = new Float64Array(Math.max(0, numFrames));
+
+  for (let f = 0; f < numFrames; f++) {
+    const real = new Float64Array(frameSize), imag = new Float64Array(frameSize);
+    const start = f * hop;
+    for (let i = 0; i < frameSize; i++) real[i] = channelArr[start + i] * win[i];
+    fft.forward(real, imag);
+    let sum = 0;
+    for (let i = 0; i < frameSize / 2; i++) {
+      const m = Math.sqrt(real[i] * real[i] + imag[i] * imag[i]);
+      const d = m - prevMag[i];
+      if (d > 0) sum += d;
+      prevMag[i] = m;
+    }
+    flux[f] = sum;
+  }
+  let mean = 0; for (let i = 0; i < flux.length; i++) mean += flux[i]; mean /= (flux.length || 1);
+  let variance = 0; for (let i = 0; i < flux.length; i++) variance += (flux[i] - mean) ** 2; variance /= (flux.length || 1);
+  const stddev = Math.sqrt(variance);
+  const threshold = mean + stddev * (1.2 - sensitivity) * 2.2;
+
+  const onsets = [];
+  let lastOnsetFrame = -20;
+  for (let f = 1; f < flux.length - 1; f++) {
+    if (flux[f] > threshold && flux[f] > flux[f - 1] && flux[f] >= flux[f + 1] && (f - lastOnsetFrame) > 6) {
+      onsets.push(f * hop);
+      lastOnsetFrame = f;
+    }
+  }
+  return onsets;
+}
+
+function buildTransientLayerAndDuckedBody(channelArr, onsets, sampleRate) {
+  const snippetLen = Math.floor(sampleRate * 0.09);
+  const fadeLen = Math.floor(sampleRate * 0.015);
+  const ducked = channelArr.slice();
+  const snippets = onsets.map(pos => {
+    const snip = new Float32Array(snippetLen);
+    for (let i = 0; i < snippetLen; i++) {
+      const idx = pos + i;
+      if (idx >= channelArr.length) break;
+      let g = 1;
+      if (i < fadeLen) g = i / fadeLen;
+      else if (i > snippetLen - fadeLen) g = (snippetLen - i) / fadeLen;
+      snip[i] = channelArr[idx] * g;
+      let duckG = 1;
+      if (i < fadeLen) duckG = 1 - (i / fadeLen);
+      else if (i > snippetLen - fadeLen) duckG = 1 - ((snippetLen - i) / fadeLen);
+      else duckG = 0;
+      ducked[idx] = ducked[idx] * duckG;
+    }
+    return { pos, snip };
+  });
+  return { ducked, snippets };
+}
+
+function placeTransients(snippets, stretchFactor, outLength, gain) {
+  const out = new Float64Array(outLength);
+  for (const { pos, snip } of snippets) {
+    const outPos = Math.round(pos * stretchFactor);
+    for (let i = 0; i < snip.length; i++) {
+      const idx = outPos + i;
+      if (idx >= 0 && idx < outLength) out[idx] += snip[i] * gain;
+    }
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// Render orchestration
+// ---------------------------------------------------------------------------
+function nextPow2(n) { return Math.pow(2, Math.round(Math.log2(n))); }
+
+function getTrimmedChannels() {
+  const sr = sourceBuffer.sampleRate;
+  let tStart = Math.max(0, parseFloat(trimStartInput.value) || 0);
+  let tEnd = trimEndInput.value === '' ? sourceBuffer.duration : parseFloat(trimEndInput.value);
+  if (isNaN(tEnd) || tEnd <= tStart) tEnd = sourceBuffer.duration;
+  const startSample = Math.floor(tStart * sr);
+  const endSample = Math.min(sourceBuffer.length, Math.floor(tEnd * sr));
+  const channels = [];
+  for (let c = 0; c < sourceBuffer.numberOfChannels; c++) {
+    channels.push(sourceBuffer.getChannelData(c).subarray(startSample, endSample));
+  }
+  return { channels, sr };
+}
+
+processBtn.onclick = async () => {
+  if (!sourceBuffer) return;
+  initAudioContext();
+  processBtn.disabled = true;
+  freezeBtn.disabled = true;
+  playBtn.disabled = true;
+  downloadBtn.disabled = true;
+  progressWrap.classList.add('active');
+  statusDisplay.textContent = 'Rendering...';
+
+  const stretch = parseFloat(stretchInput.value);
+  const windowSize = nextPow2(parseInt(windowSizeInput.value, 10));
+  const windowType = windowTypeInput.value;
+  const windowTypeB = windowTypeBInput.value;
+  const morphEnabled = morphEnabledInput.checked;
+  const morphRateHz = parseFloat(morphRateInput.value);
+  const phaseAmount = parseFloat(phaseInput.value);
+  const stereoWiden = stereoWidenInput.checked;
+  const formantShift = parseFloat(formantInput.value);
+  const eqGainFn = makeEqGainFn(
+    parseFloat(eqLowInput.value), parseFloat(eqMidInput.value), parseFloat(eqHighInput.value),
+    parseFloat(eqXover1Input.value), parseFloat(eqXover2Input.value)
+  );
+  const multibandEnabled = multibandEnabledInput.checked;
+  const transientEnabled = transientEnabledInput.checked;
+
+  const { channels: inputChannels, sr } = getTrimmedChannels();
+  const numChannels = inputChannels.length;
+  const channelsToProcess = stereoWiden ? numChannels : 1;
+
+  const outChannels = [];
+
+  for (let c = 0; c < channelsToProcess; c++) {
+    let bodySignal = inputChannels[c];
+    let onsets = [];
+    let snippets = [];
+
+    if (transientEnabled) {
+      onsets = detectOnsets(bodySignal, sr, parseFloat(transSensInput.value));
+      const split = buildTransientLayerAndDuckedBody(bodySignal, onsets, sr);
+      bodySignal = split.ducked;
+      snippets = split.snippets;
+    }
+
+    let bodyResult;
+    if (multibandEnabled) {
+      const xover1 = parseFloat(mbXover1Input.value), xover2 = parseFloat(mbXover2Input.value);
+      const bands = await splitIntoBands(bodySignal, sr, xover1, xover2);
+      const lowStretch = parseFloat(mbLowStretchInput.value);
+      const midStretch = parseFloat(mbMidStretchInput.value);
+      const highStretch = parseFloat(mbHighStretchInput.value);
+
+      const commonOpts = { windowSize, windowType, windowTypeB, morphEnabled, morphRateHz, phaseAmount, formantShift, eqGainFn: null };
+      const lowOut = await stretchBuffer(bands.low, sr, { ...commonOpts, stretch: lowStretch }, p => reportProgress(c, channelsToProcess, p, 'low band'));
+      const midOut = await stretchBuffer(bands.mid, sr, { ...commonOpts, stretch: midStretch }, p => reportProgress(c, channelsToProcess, p, 'mid band'));
+      const highOut = await stretchBuffer(bands.high, sr, { ...commonOpts, stretch: highStretch }, p => reportProgress(c, channelsToProcess, p, 'high band'));
+      bodyResult = sumPadded([lowOut, midOut, highOut]);
+    } else {
+      bodyResult = await stretchBuffer(bodySignal, sr, {
+        stretch, windowSize, windowType, windowTypeB, morphEnabled, morphRateHz, phaseAmount, formantShift, eqGainFn
+      }, p => reportProgress(c, channelsToProcess, p, 'stretch'));
+    }
+
+    if (transientEnabled && snippets.length) {
+      const transLayer = placeTransients(snippets, stretch, bodyResult.length, parseFloat(transGainInput.value));
+      const mixed = new Float32Array(bodyResult.length);
+      let peak = 0;
+      for (let i = 0; i < bodyResult.length; i++) { mixed[i] = bodyResult[i] + transLayer[i]; const a = Math.abs(mixed[i]); if (a > peak) peak = a; }
+      const scale = peak > 0.98 ? 0.95 / peak : 1;
+      for (let i = 0; i < mixed.length; i++) mixed[i] *= scale;
+      bodyResult = mixed;
+    }
+
+    outChannels.push(bodyResult);
+  }
+  if (!stereoWiden && numChannels > 1) {
+    for (let c = 1; c < numChannels; c++) outChannels.push(outChannels[0]);
+  }
+
+  finishRender(outChannels, sr);
+};
+
+freezeBtn.onclick = async () => {
+  if (!sourceBuffer) return;
+  initAudioContext();
+  processBtn.disabled = true;
+  freezeBtn.disabled = true;
+  playBtn.disabled = true;
+  downloadBtn.disabled = true;
+  progressWrap.classList.add('active');
+  statusDisplay.textContent = 'Freezing...';
+
+  const { channels: inputChannels, sr } = getTrimmedChannels();
+  const windowSize = nextPow2(parseInt(windowSizeInput.value, 10));
+  const windowType = windowTypeInput.value;
+  const phaseAmount = parseFloat(phaseInput.value);
+  const posFrac = parseFloat(freezePosInput.value) / 100;
+  const durationSec = parseFloat(freezeDurInput.value);
+  const stereoWiden = stereoWidenInput.checked;
+  const numChannels = inputChannels.length;
+  const channelsToProcess = stereoWiden ? numChannels : 1;
+
+  const outChannels = [];
+  for (let c = 0; c < channelsToProcess; c++) {
+    const posSample = Math.floor(posFrac * Math.max(0, inputChannels[c].length - windowSize));
+    const result = await freezeBuffer(inputChannels[c], sr, posSample, windowSize, windowType, phaseAmount, durationSec, p => reportProgress(c, channelsToProcess, p, 'freeze'));
+    outChannels.push(result);
+  }
+  if (!stereoWiden && numChannels > 1) {
+    for (let c = 1; c < numChannels; c++) outChannels.push(outChannels[0]);
+  }
+  finishRender(outChannels, sr);
+};
+
+function reportProgress(c, total, p, label) {
+  const pct = Math.round(((c + p) / total) * 100);
+  progressFill.style.width = pct + '%';
+  progressLabel.textContent = `Processing channel ${c + 1}/${total} (${label}) — ${pct}%`;
+}
+
+function finishRender(outChannels, sr) {
+  stretchedChannels = outChannels;
+  stretchedSampleRate = sr;
+  drawWaveform(outputCanvas, outCtx, stretchedChannels[0], '#ec4899');
+  progressWrap.classList.remove('active');
+  statusDisplay.textContent = 'Rendered';
+  processBtn.disabled = false;
+  freezeBtn.disabled = false;
+  playBtn.disabled = false;
+  downloadBtn.disabled = false;
+}
+
+// ---------------------------------------------------------------------------
+// Playback with live shaping (filters + reverb)
+// ---------------------------------------------------------------------------
+function buildStretchedBuffer() {
+  const len = stretchedChannels[0].length;
+  const buf = audioCtx.createBuffer(stretchedChannels.length, len, stretchedSampleRate);
+  for (let c = 0; c < stretchedChannels.length; c++) buf.copyToChannel(stretchedChannels[c], c);
+  return buf;
+}
+
+function updateLiveFilters() {
+  if (!liveNodes) return;
+  liveNodes.lowpass.frequency.setTargetAtTime(parseFloat(lowpassInput.value), audioCtx.currentTime, 0.05);
+  liveNodes.highpass.frequency.setTargetAtTime(parseFloat(highpassInput.value), audioCtx.currentTime, 0.05);
+  liveNodes.feedback.gain.setTargetAtTime(parseFloat(reverbInput.value), audioCtx.currentTime, 0.05);
+  liveNodes.masterGain.gain.setTargetAtTime(parseFloat(volumeInput.value), audioCtx.currentTime, 0.05);
+}
+
+playBtn.onclick = () => {
+  if (!stretchedChannels) return;
+  initAudioContext();
+  stopPlayback();
+
+  const buffer = buildStretchedBuffer();
+  const src = audioCtx.createBufferSource();
+  src.buffer = buffer;
+  src.loop = true;
+
+  const highpass = audioCtx.createBiquadFilter();
+  highpass.type = 'highpass';
+  highpass.frequency.value = parseFloat(highpassInput.value);
+
+  const lowpass = audioCtx.createBiquadFilter();
+  lowpass.type = 'lowpass';
+  lowpass.frequency.value = parseFloat(lowpassInput.value);
+
+  const masterGain = audioCtx.createGain();
+  masterGain.gain.value = parseFloat(volumeInput.value);
+
+  const delay = audioCtx.createDelay(2.0);
+  delay.delayTime.value = 0.35;
+  const feedback = audioCtx.createGain();
+  feedback.gain.value = parseFloat(reverbInput.value);
+
+  src.connect(highpass);
+  highpass.connect(lowpass);
+  lowpass.connect(masterGain);
+  masterGain.connect(audioCtx.destination);
+
+  lowpass.connect(delay);
+  delay.connect(feedback);
+  feedback.connect(delay);
+  feedback.connect(masterGain);
+
+  src.start(0);
+  liveNodes = { src, highpass, lowpass, masterGain, delay, feedback };
+  isPlaying = true;
+  playBtn.disabled = true;
+  stopBtn.disabled = false;
+  statusDisplay.textContent = 'Playing (looped)';
+};
+
+function stopPlayback() {
+  if (liveNodes && liveNodes.src) {
+    try { liveNodes.src.stop(); } catch (e) {}
+    liveNodes.src.disconnect();
+  }
+  liveNodes = null;
+  isPlaying = false;
+}
+
+stopBtn.onclick = () => {
+  stopPlayback();
+  playBtn.disabled = false;
+  stopBtn.disabled = true;
+  statusDisplay.textContent = 'Rendered';
+};
+
+// ---------------------------------------------------------------------------
+// WAV export
+// ---------------------------------------------------------------------------
+function encodeWAV(channels, sampleRate) {
+  const numChannels = channels.length;
+  const numSamples = channels[0].length;
+  const bytesPerSample = 2;
+  const blockAlign = numChannels * bytesPerSample;
+  const dataSize = numSamples * blockAlign;
+  const buffer = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buffer);
+  function writeString(offset, str) { for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i)); }
+  writeString(0, 'RIFF');
+  view.setUint32(4, 36 + dataSize, true);
+  writeString(8, 'WAVE');
+  writeString(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * blockAlign, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, 16, true);
+  writeString(36, 'data');
+  view.setUint32(40, dataSize, true);
+  let offset = 44;
+  for (let i = 0; i < numSamples; i++) {
+    for (let c = 0; c < numChannels; c++) {
+      let s = Math.max(-1, Math.min(1, channels[c][i]));
+      s = s < 0 ? s * 0x8000 : s * 0x7FFF;
+      view.setInt16(offset, s, true);
+      offset += 2;
+    }
+  }
+  return new Blob([buffer], { type: 'audio/wav' });
+}
+
+downloadBtn.onclick = () => {
+  if (!stretchedChannels) return;
+  const blob = encodeWAV(stretchedChannels, stretchedSampleRate);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'paulstretch_soundscape.wav';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+};
+</script>
+</body>
+</html>
