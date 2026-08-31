@@ -57,11 +57,14 @@
   .layer-list { display: flex; flex-direction: column; gap: 6px; }
   .layer-row { display: flex; flex-direction: column; gap: 6px; background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
   .layer-row-top { display: flex; align-items: center; gap: 8px; }
+  .layer-row-mid { display: flex; align-items: center; gap: 6px; }
   .layer-row-bottom { display: flex; align-items: center; gap: 6px; }
   .layer-row .layer-name { font-size: 0.78rem; font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .layer-row .layer-preset { flex: 1.4; font-size: 0.72rem; padding: 5px 6px; }
   .layer-row .layer-stretch { width: 52px; font-size: 0.72rem; padding: 5px 4px; text-align: center; }
-  .layer-row input[type="range"] { width: 60px; }
+  .layer-row .layer-start { width: 64px; font-size: 0.72rem; padding: 5px 4px; text-align: center; }
+  .layer-row .layer-start-label { font-size: 0.65rem; color: var(--text-muted); white-space: nowrap; }
+  .layer-row input[type="range"] { width: 60px; flex: 1; }
   .layer-row .layer-remove { background: #ef4444; color: white; border: none; border-radius: 6px; width: 22px; height: 22px; font-size: 0.8rem; cursor: pointer; flex-shrink: 0; }
   .layer-row input[type="checkbox"] { width: 15px; height: 15px; flex-shrink: 0; }
   .layer-empty { font-size: 0.72rem; color: var(--text-muted); padding: 4px 2px; }
@@ -134,7 +137,7 @@
 
     <div class="section-label">Layers <span class="badge" id="layerCountBadge">1 source</span></div>
     <div class="control-group">
-      <div class="hint">Blend extra files underneath the main source — each layer gets its own preset/stretch and gain, then mixes into the final render.</div>
+      <div class="hint">Blend extra files underneath the main source — each layer gets its own preset/stretch, start time, and gain, then mixes into the final render.</div>
       <div class="layer-list" id="layerList">
         <div class="layer-empty" id="layerEmptyMsg">No extra layers added.</div>
       </div>
@@ -645,7 +648,8 @@ layerFileInput.addEventListener('change', (e) => {
         windowSize: nextPow2(parseInt(windowSizeInput.value, 10)),
         windowType: windowTypeInput.value,
         phaseAmount: parseFloat(phaseInput.value),
-        presetIndex: -1
+        presetIndex: -1,
+        startOffset: 0
       });
       renderLayerList();
     }, (err) => console.error('Layer decode error:', err));
@@ -668,18 +672,25 @@ function renderLayerList() {
         <span class="layer-name">${layer.name}</span>
         <button class="layer-remove">×</button>
       </div>
-      <div class="layer-row-bottom">
+      <div class="layer-row-mid">
         <select class="layer-preset" title="Preset override">
           <option value="-1" ${layer.presetIndex === -1 ? 'selected' : ''}>Custom</option>
           ${presetOptions}
         </select>
         <input type="number" class="layer-stretch" min="1" max="100" step="0.5" value="${layer.stretch}" title="Stretch factor">
+      </div>
+      <div class="layer-row-bottom">
+        <span class="layer-start-label">Start</span>
+        <input type="number" class="layer-start" min="0" step="0.5" value="${layer.startOffset || 0}" title="Start offset (seconds into the output)">
         <input type="range" class="layer-gain" min="0" max="1.5" step="0.05" value="${layer.gain}" title="Layer volume">
       </div>
     `;
     if (layer.presetIndex >= 0) row.querySelector('.layer-preset').value = String(layer.presetIndex);
     row.querySelector('.layer-mute').addEventListener('change', (e) => { layer.muted = !e.target.checked; });
     row.querySelector('.layer-gain').addEventListener('input', (e) => { layer.gain = parseFloat(e.target.value); });
+    row.querySelector('.layer-start').addEventListener('change', (e) => {
+      layer.startOffset = Math.max(0, parseFloat(e.target.value) || 0);
+    });
     row.querySelector('.layer-remove').addEventListener('click', () => {
       layers = layers.filter(l => l.id !== layer.id);
       renderLayerList();
@@ -1348,7 +1359,8 @@ processBtn.onclick = async () => {
       eqParams: baseOpts.eqParams
     };
     const layerResult = await runStretchJob('stretch', layerChannels[0], layerSr, layerOpts, p => reportProgress(stepIndex, totalSteps, p, layer.name));
-    mixLayerIntoOutChannels(outChannels, layerResult, layer.gain);
+    const offsetSamples = Math.round((layer.startOffset || 0) * sr);
+    mixLayerIntoOutChannels(outChannels, layerResult, layer.gain, offsetSamples);
     stepIndex++;
   }
   normalizePeak(outChannels);
@@ -1379,15 +1391,20 @@ function normalizeFloatArray(arr, target) {
   return out;
 }
 
-function mixLayerIntoOutChannels(outChannels, layerResult, gain) {
-  const maxLen = Math.max(...outChannels.map(c => c.length), layerResult.length);
+function mixLayerIntoOutChannels(outChannels, layerResult, gain, offsetSamples) {
+  offsetSamples = offsetSamples || 0;
+  const neededLen = offsetSamples + layerResult.length;
+  const maxLen = Math.max(...outChannels.map(c => c.length), neededLen);
   for (let c = 0; c < outChannels.length; c++) {
     if (outChannels[c].length < maxLen) {
       const grown = new Float32Array(maxLen);
       grown.set(outChannels[c]);
       outChannels[c] = grown;
     }
-    for (let i = 0; i < layerResult.length; i++) outChannels[c][i] += layerResult[i] * gain;
+    for (let i = 0; i < layerResult.length; i++) {
+      const idx = offsetSamples + i;
+      if (idx < maxLen) outChannels[c][idx] += layerResult[i] * gain;
+    }
   }
 }
 function normalizePeak(channels) {
