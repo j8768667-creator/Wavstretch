@@ -55,9 +55,13 @@
   .preset-row .sub { font-size: 0.66rem; color: var(--text-muted); flex-shrink: 0; }
 
   .layer-list { display: flex; flex-direction: column; gap: 6px; }
-  .layer-row { display: flex; align-items: center; gap: 8px; background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
+  .layer-row { display: flex; flex-direction: column; gap: 6px; background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
+  .layer-row-top { display: flex; align-items: center; gap: 8px; }
+  .layer-row-bottom { display: flex; align-items: center; gap: 6px; }
   .layer-row .layer-name { font-size: 0.78rem; font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .layer-row input[type="range"] { width: 70px; }
+  .layer-row .layer-preset { flex: 1.4; font-size: 0.72rem; padding: 5px 6px; }
+  .layer-row .layer-stretch { width: 52px; font-size: 0.72rem; padding: 5px 4px; text-align: center; }
+  .layer-row input[type="range"] { width: 60px; }
   .layer-row .layer-remove { background: #ef4444; color: white; border: none; border-radius: 6px; width: 22px; height: 22px; font-size: 0.8rem; cursor: pointer; flex-shrink: 0; }
   .layer-row input[type="checkbox"] { width: 15px; height: 15px; flex-shrink: 0; }
   .layer-empty { font-size: 0.72rem; color: var(--text-muted); padding: 4px 2px; }
@@ -130,7 +134,7 @@
 
     <div class="section-label">Layers <span class="badge" id="layerCountBadge">1 source</span></div>
     <div class="control-group">
-      <div class="hint">Blend extra files underneath the main source — all layers stretch with the same settings above and mix into the final render.</div>
+      <div class="hint">Blend extra files underneath the main source — each layer gets its own preset/stretch and gain, then mixes into the final render.</div>
       <div class="layer-list" id="layerList">
         <div class="layer-empty" id="layerEmptyMsg">No extra layers added.</div>
       </div>
@@ -166,6 +170,11 @@
     <div class="action-row">
       <button class="big-btn btn-download" id="downloadBtn" disabled>Download WAV</button>
     </div>
+    <div class="action-row advanced-only hidden">
+      <button class="big-btn btn-download" id="stemPadBtn" disabled>Download Pad Stem</button>
+      <button class="big-btn btn-download" id="stemTransientBtn" disabled>Download Transient Stem</button>
+    </div>
+    <div class="hint advanced-only hidden">Stems only become available after rendering with Transient Preservation enabled, and reflect the main source only (not extra layers).</div>
 
     <div class="section-label advanced-only hidden">Tempo Sync Calculator</div>
     <div class="control-group advanced-only hidden">
@@ -383,7 +392,9 @@ let stretchedChannels = null;
 let stretchedSampleRate = 44100;
 let liveNodes = null;
 let isPlaying = false;
-let layers = []; // { id, name, buffer, gain, muted }
+let layers = []; // { id, name, buffer, gain, muted, stretch, windowSize, windowType, phaseAmount, presetIndex }
+let stemPadChannels = null;
+let stemTransientChannels = null;
 let layerIdCounter = 0;
 let playbackStartCtxTime = 0;
 let playbackOffset = 0;
@@ -406,6 +417,8 @@ const freezeBtn = $('freezeBtn');
 const playBtn = $('playBtn');
 const stopBtn = $('stopBtn');
 const downloadBtn = $('downloadBtn');
+const stemPadBtn = $('stemPadBtn');
+const stemTransientBtn = $('stemTransientBtn');
 const progressWrap = $('progressWrap');
 const progressFill = $('progressFill');
 const progressLabel = $('progressLabel');
@@ -457,6 +470,15 @@ const syncResult = $('syncResult');
 
 const modeSimpleBtn = $('modeSimpleBtn');
 const modeAdvancedBtn = $('modeAdvancedBtn');
+
+const PRESETS = Array.from(document.querySelectorAll('.preset-row')).map(row => ({
+  tag: row.querySelector('.tag').textContent,
+  name: row.querySelector('.name').textContent,
+  stretch: parseFloat(row.dataset.stretch),
+  windowSize: parseInt(row.dataset.window, 10),
+  phase: parseFloat(row.dataset.phase),
+  wtype: row.dataset.wtype
+}));
 
 // ---------------------------------------------------------------------------
 // Simple / Advanced mode
@@ -598,8 +620,12 @@ function initAudioContext() {
 
 function resetOutput() {
   stretchedChannels = null;
+  stemPadChannels = null;
+  stemTransientChannels = null;
   playBtn.disabled = true;
   downloadBtn.disabled = true;
+  stemPadBtn.disabled = true;
+  stemTransientBtn.disabled = true;
   statusDisplay.textContent = 'Ready';
 }
 
@@ -613,7 +639,14 @@ layerFileInput.addEventListener('change', (e) => {
   const reader = new FileReader();
   reader.onload = function (evt) {
     audioCtx.decodeAudioData(evt.target.result, (buffer) => {
-      layers.push({ id: ++layerIdCounter, name: file.name, buffer, gain: 0.7, muted: false });
+      layers.push({
+        id: ++layerIdCounter, name: file.name, buffer, gain: 0.7, muted: false,
+        stretch: parseFloat(stretchInput.value),
+        windowSize: nextPow2(parseInt(windowSizeInput.value, 10)),
+        windowType: windowTypeInput.value,
+        phaseAmount: parseFloat(phaseInput.value),
+        presetIndex: -1
+      });
       renderLayerList();
     }, (err) => console.error('Layer decode error:', err));
   };
@@ -625,20 +658,48 @@ function renderLayerList() {
   layerList.querySelectorAll('.layer-row').forEach(el => el.remove());
   layerEmptyMsg.classList.toggle('hidden', layers.length > 0);
   layerCountBadge.textContent = layers.length ? `${layers.length + 1} sources` : '1 source';
+  const presetOptions = PRESETS.map((p, i) => `<option value="${i}">${p.name} (${p.stretch}x)</option>`).join('');
   for (const layer of layers) {
     const row = document.createElement('div');
     row.className = 'layer-row';
     row.innerHTML = `
-      <input type="checkbox" class="layer-mute" ${layer.muted ? '' : 'checked'} title="Active">
-      <span class="layer-name">${layer.name}</span>
-      <input type="range" class="layer-gain" min="0" max="1.5" step="0.05" value="${layer.gain}">
-      <button class="layer-remove">×</button>
+      <div class="layer-row-top">
+        <input type="checkbox" class="layer-mute" ${layer.muted ? '' : 'checked'} title="Active">
+        <span class="layer-name">${layer.name}</span>
+        <button class="layer-remove">×</button>
+      </div>
+      <div class="layer-row-bottom">
+        <select class="layer-preset" title="Preset override">
+          <option value="-1" ${layer.presetIndex === -1 ? 'selected' : ''}>Custom</option>
+          ${presetOptions}
+        </select>
+        <input type="number" class="layer-stretch" min="1" max="100" step="0.5" value="${layer.stretch}" title="Stretch factor">
+        <input type="range" class="layer-gain" min="0" max="1.5" step="0.05" value="${layer.gain}" title="Layer volume">
+      </div>
     `;
+    if (layer.presetIndex >= 0) row.querySelector('.layer-preset').value = String(layer.presetIndex);
     row.querySelector('.layer-mute').addEventListener('change', (e) => { layer.muted = !e.target.checked; });
     row.querySelector('.layer-gain').addEventListener('input', (e) => { layer.gain = parseFloat(e.target.value); });
     row.querySelector('.layer-remove').addEventListener('click', () => {
       layers = layers.filter(l => l.id !== layer.id);
       renderLayerList();
+    });
+    row.querySelector('.layer-stretch').addEventListener('change', (e) => {
+      layer.stretch = Math.max(1, Math.min(100, parseFloat(e.target.value) || 1));
+      layer.presetIndex = -1;
+      row.querySelector('.layer-preset').value = '-1';
+    });
+    row.querySelector('.layer-preset').addEventListener('change', (e) => {
+      const idx = parseInt(e.target.value, 10);
+      layer.presetIndex = idx;
+      if (idx >= 0) {
+        const p = PRESETS[idx];
+        layer.stretch = p.stretch;
+        layer.windowSize = nextPow2(p.windowSize);
+        layer.windowType = p.wtype;
+        layer.phaseAmount = p.phase;
+        row.querySelector('.layer-stretch').value = p.stretch;
+      }
     });
     layerList.appendChild(row);
   }
@@ -1202,6 +1263,7 @@ processBtn.onclick = async () => {
   if (!sourceBuffer) return;
   initAudioContext();
   processBtn.disabled = true; freezeBtn.disabled = true; playBtn.disabled = true; downloadBtn.disabled = true; previewBtn.disabled = true;
+  stemPadBtn.disabled = true; stemTransientBtn.disabled = true;
   progressWrap.classList.add('active');
   statusDisplay.textContent = 'Rendering...';
 
@@ -1218,6 +1280,10 @@ processBtn.onclick = async () => {
   let stepIndex = 0;
 
   const outChannels = [];
+  const padStemChannels = [];
+  const transientStemChannels = [];
+  let anyTransients = false;
+
   for (let c = 0; c < channelsToProcess; c++) {
     let bodySignal = inputChannels[c];
     let snippets = [];
@@ -1238,32 +1304,80 @@ processBtn.onclick = async () => {
     } else {
       bodyResult = await runStretchJob('stretch', bodySignal, sr, baseOpts, p => reportProgress(stepIndex, totalSteps, p, 'stretch'));
     }
+    const padVersion = bodyResult;
     if (transientEnabled && snippets.length) {
+      anyTransients = true;
       const transLayer = placeTransients(snippets, stretch, bodyResult.length, parseFloat(transGainInput.value));
+      const transLayerF32 = normalizeFloatArray(Float32Array.from(transLayer));
+      transientStemChannels.push(transLayerF32);
+      padStemChannels.push(padVersion.slice());
+
       const mixed = new Float32Array(bodyResult.length);
       let peak = 0;
       for (let i = 0; i < bodyResult.length; i++) { mixed[i] = bodyResult[i] + transLayer[i]; const a = Math.abs(mixed[i]); if (a > peak) peak = a; }
       const scale = peak > 0.98 ? 0.95 / peak : 1;
       for (let i = 0; i < mixed.length; i++) mixed[i] *= scale;
       bodyResult = mixed;
+    } else if (transientEnabled) {
+      padStemChannels.push(padVersion.slice());
+      transientStemChannels.push(new Float32Array(padVersion.length));
     }
     outChannels.push(bodyResult);
     stepIndex++;
   }
-  if (!stereoWiden && numChannels > 1) for (let c = 1; c < numChannels; c++) outChannels.push(outChannels[0]);
+  if (!stereoWiden && numChannels > 1) {
+    for (let c = 1; c < numChannels; c++) {
+      outChannels.push(outChannels[0]);
+      if (padStemChannels.length) { padStemChannels.push(padStemChannels[0]); transientStemChannels.push(transientStemChannels[0]); }
+    }
+  }
 
-  // Mix in extra layers (mono, same global settings, no multiband/transients — kept simple)
+  // Mix in extra layers — each layer uses its own stretch/window/phase (preset override), falling back to global for EQ/formant/morph
   for (const layer of layers) {
     if (layer.muted) continue;
     const { channels: layerChannels, sr: layerSr } = getTrimmedChannels(layer.buffer);
-    const layerResult = await runStretchJob('stretch', layerChannels[0], layerSr, baseOpts, p => reportProgress(stepIndex, totalSteps, p, layer.name));
+    const layerOpts = {
+      stretch: layer.stretch,
+      windowSize: nextPow2(layer.windowSize),
+      windowType: layer.windowType,
+      windowTypeB: baseOpts.windowTypeB,
+      morphEnabled: baseOpts.morphEnabled,
+      morphRateHz: baseOpts.morphRateHz,
+      phaseAmount: layer.phaseAmount,
+      formantShift: baseOpts.formantShift,
+      eqParams: baseOpts.eqParams
+    };
+    const layerResult = await runStretchJob('stretch', layerChannels[0], layerSr, layerOpts, p => reportProgress(stepIndex, totalSteps, p, layer.name));
     mixLayerIntoOutChannels(outChannels, layerResult, layer.gain);
     stepIndex++;
   }
   normalizePeak(outChannels);
 
+  if (anyTransients) {
+    normalizePeak(padStemChannels);
+    normalizePeak(transientStemChannels);
+    stemPadChannels = padStemChannels;
+    stemTransientChannels = transientStemChannels;
+    stemPadBtn.disabled = false;
+    stemTransientBtn.disabled = false;
+  } else {
+    stemPadChannels = null;
+    stemTransientChannels = null;
+  }
+
   finishRender(outChannels, sr);
 };
+
+function normalizeFloatArray(arr, target) {
+  target = target || 0.9;
+  let peak = 0;
+  for (let i = 0; i < arr.length; i++) { const a = Math.abs(arr[i]); if (a > peak) peak = a; }
+  if (peak <= 0) return arr;
+  const scale = target / peak;
+  const out = new Float32Array(arr.length);
+  for (let i = 0; i < arr.length; i++) out[i] = arr[i] * scale;
+  return out;
+}
 
 function mixLayerIntoOutChannels(outChannels, layerResult, gain) {
   const maxLen = Math.max(...outChannels.map(c => c.length), layerResult.length);
@@ -1288,6 +1402,8 @@ freezeBtn.onclick = async () => {
   if (!sourceBuffer) return;
   initAudioContext();
   processBtn.disabled = true; freezeBtn.disabled = true; playBtn.disabled = true; downloadBtn.disabled = true; previewBtn.disabled = true;
+  stemPadChannels = null; stemTransientChannels = null;
+  stemPadBtn.disabled = true; stemTransientBtn.disabled = true;
   progressWrap.classList.add('active');
   statusDisplay.textContent = 'Freezing...';
 
@@ -1465,6 +1581,18 @@ downloadBtn.onclick = () => {
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 };
+
+function downloadStem(channels, filename) {
+  if (!channels) return;
+  const blob = encodeWAV(channels, stretchedSampleRate);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+stemPadBtn.onclick = () => downloadStem(stemPadChannels, 'wavstretch_pad_stem.wav');
+stemTransientBtn.onclick = () => downloadStem(stemTransientChannels, 'wavstretch_transient_stem.wav');
 </script>
 </body>
 </html>
