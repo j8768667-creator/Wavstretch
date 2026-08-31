@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Paulstretch Studio — Extreme Ambient Soundscapes</title>
+<title>WavStretch Studio — Extreme Ambient Soundscapes</title>
 <style>
   :root {
     --bg-dark: #080a0f; --panel-bg: #11141d; --card-bg: #181c28; --card-hover: #212636;
@@ -19,33 +19,48 @@
   }
   .app-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; width: 100%; max-width: 1280px; }
   @media (max-width: 900px) { .app-layout { grid-template-columns: 1fr; } }
-  .panel { background: var(--panel-bg); border-radius: 16px; border: 1px solid var(--border); padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+  .panel { background: var(--panel-bg); border-radius: 16px; border: 1px solid var(--border); padding: 20px; display: flex; flex-direction: column; gap: 14px; }
   h1 { font-size: 1rem; margin: 0 0 4px 0; }
-  .subtitle { font-size: 0.75rem; color: var(--text-muted); margin: -12px 0 4px 0; }
-  .section-label { font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 6px; display: flex; align-items: center; justify-content: space-between; }
+  .subtitle { font-size: 0.75rem; color: var(--text-muted); margin: -10px 0 4px 0; }
+  .section-label { font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 4px; display: flex; align-items: center; justify-content: space-between; }
   .section-label .badge { font-size: 0.6rem; padding: 2px 6px; border-radius: 8px; background: var(--card-hover); color: var(--accent-pink); text-transform: none; letter-spacing: 0; }
+
+  .mode-toggle { display: flex; background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 3px; gap: 3px; }
+  .mode-toggle button { flex: 1; background: transparent; border: none; color: var(--text-muted); padding: 8px; border-radius: 8px; font-size: 0.8rem; font-weight: 700; cursor: pointer; }
+  .mode-toggle button.active { background: linear-gradient(135deg, #6366f1, #ec4899); color: white; }
 
   .file-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
   .file-info { font-weight: 600; font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 55%; }
   .file-btn { background: var(--accent); color: white; padding: 8px 16px; border-radius: 8px; font-size: 0.85rem; cursor: pointer; font-weight: 600; white-space: nowrap; }
+  .file-btn.secondary { background: var(--card-hover); border: 1px solid var(--border); }
   input[type="file"] { display: none; }
 
   .waveform-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
   .waveform-title { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; display: flex; justify-content: space-between; }
   .canvas-container { height: 84px; width: 100%; background: rgba(0,0,0,0.3); border-radius: 8px; overflow: hidden; position: relative; }
   canvas { width: 100%; height: 100%; display: block; }
+  #sourceCanvas { touch-action: none; cursor: ew-resize; }
+  #outputCanvas { touch-action: none; cursor: pointer; }
 
   .trim-row { display: flex; gap: 10px; margin-top: 10px; }
   .trim-field { flex: 1; }
   .trim-field label { font-size: 0.7rem; color: var(--text-muted); display: block; margin-bottom: 4px; }
   .trim-field input { width: 100%; background: rgba(0,0,0,0.3); border: 1px solid var(--border); color: var(--text-main); border-radius: 6px; padding: 6px 8px; font-size: 0.8rem; }
 
-  .presets-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
-  .preset-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 10px; padding: 12px; cursor: pointer; transition: all 0.15s; }
-  .preset-card:active, .preset-card.active { border-color: var(--accent-pink); background: var(--pink-glow); }
-  .preset-tag { font-size: 0.65rem; color: var(--accent-pink); text-transform: uppercase; font-weight: 700; margin-bottom: 4px; }
-  .preset-title { font-size: 0.85rem; font-weight: 600; }
-  .preset-sub { font-size: 0.65rem; color: var(--text-muted); margin-top: 2px; }
+  .preset-list { display: flex; flex-direction: column; gap: 6px; }
+  .preset-row { display: flex; align-items: center; gap: 10px; background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; cursor: pointer; }
+  .preset-row:active, .preset-row.active { border-color: var(--accent-pink); background: var(--pink-glow); }
+  .preset-row .tag { font-size: 0.62rem; color: var(--accent-pink); text-transform: uppercase; font-weight: 700; width: 62px; flex-shrink: 0; }
+  .preset-row .name { font-size: 0.85rem; font-weight: 600; flex: 1; }
+  .preset-row .sub { font-size: 0.66rem; color: var(--text-muted); flex-shrink: 0; }
+
+  .layer-list { display: flex; flex-direction: column; gap: 6px; }
+  .layer-row { display: flex; align-items: center; gap: 8px; background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
+  .layer-row .layer-name { font-size: 0.78rem; font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .layer-row input[type="range"] { width: 70px; }
+  .layer-row .layer-remove { background: #ef4444; color: white; border: none; border-radius: 6px; width: 22px; height: 22px; font-size: 0.8rem; cursor: pointer; flex-shrink: 0; }
+  .layer-row input[type="checkbox"] { width: 15px; height: 15px; flex-shrink: 0; }
+  .layer-empty { font-size: 0.72rem; color: var(--text-muted); padding: 4px 2px; }
 
   .control-group { background: var(--card-bg); padding: 14px; border-radius: 10px; border: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
   .control-header { display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--text-muted); }
@@ -62,6 +77,7 @@
   .action-row { display: flex; gap: 10px; }
   button.big-btn { border: none; color: white; padding: 15px; border-radius: 12px; font-size: 0.9rem; font-weight: 700; cursor: pointer; width: 100%; touch-action: manipulation; }
   .btn-process { background: linear-gradient(135deg, #6366f1, #ec4899); }
+  .btn-preview { background: var(--card-hover); border: 1px solid var(--border) !important; }
   .btn-freeze { background: linear-gradient(135deg, #0ea5e9, #6366f1); }
   .btn-play { background: var(--green); }
   .btn-stop { background: #ef4444; }
@@ -78,7 +94,7 @@
   .status-pill { font-size: 0.7rem; padding: 2px 8px; border-radius: 20px; background: var(--border); color: var(--text-muted); }
   .hint { font-size: 0.68rem; color: var(--text-muted); line-height: 1.4; }
   .collapsible-body { display: flex; flex-direction: column; gap: 10px; }
-  .collapsible-body.hidden { display: none; }
+  .hidden { display: none !important; }
 </style>
 </head>
 <body>
@@ -87,8 +103,13 @@
   <!-- Left Column -->
   <div class="panel">
     <div>
-      <h1>Paulstretch Studio</h1>
-      <div class="subtitle">Extreme spectral time-stretching + modern DSP extensions</div>
+      <h1>WavStretch Studio</h1>
+      <div class="subtitle">Extreme spectral time-stretching for ambient soundscapes</div>
+    </div>
+
+    <div class="mode-toggle">
+      <button id="modeSimpleBtn" class="active">Simple</button>
+      <button id="modeAdvancedBtn">Advanced</button>
     </div>
 
     <div class="file-card">
@@ -100,10 +121,21 @@
     <div class="waveform-card">
       <div class="waveform-title"><span>Source Audio</span><span id="durationDisplay">0:00</span></div>
       <div class="canvas-container"><canvas id="sourceCanvas"></canvas></div>
+      <div class="hint" style="margin-top:8px;">Drag the pink handles to set the stretch region.</div>
       <div class="trim-row">
         <div class="trim-field"><label>Trim Start (s)</label><input type="number" id="trimStart" value="0" min="0" step="0.1"></div>
-        <div class="trim-field"><label>Trim End (s, blank = full)</label><input type="number" id="trimEnd" placeholder="full length" min="0" step="0.1"></div>
+        <div class="trim-field"><label>Trim End (s)</label><input type="number" id="trimEnd" min="0" step="0.1"></div>
       </div>
+    </div>
+
+    <div class="section-label">Layers <span class="badge" id="layerCountBadge">1 source</span></div>
+    <div class="control-group">
+      <div class="hint">Blend extra files underneath the main source — all layers stretch with the same settings above and mix into the final render.</div>
+      <div class="layer-list" id="layerList">
+        <div class="layer-empty" id="layerEmptyMsg">No extra layers added.</div>
+      </div>
+      <label for="layerFile" class="file-btn secondary" style="text-align:center;">+ Add Layer</label>
+      <input type="file" id="layerFile" accept=".wav,.mp3,.m4a,.aac,.flac,audio/*">
     </div>
 
     <div class="waveform-card">
@@ -112,6 +144,7 @@
         <span class="status-pill" id="statusDisplay">Idle</span>
       </div>
       <div class="canvas-container"><canvas id="outputCanvas"></canvas></div>
+      <div class="hint" style="margin-top:8px;">Click the output waveform to seek playback.</div>
     </div>
 
     <div class="progress-wrap" id="progressWrap">
@@ -121,6 +154,9 @@
 
     <div class="action-row">
       <button class="big-btn btn-process" id="processBtn" disabled>Render Soundscape</button>
+      <button class="big-btn btn-preview" id="previewBtn" disabled>Preview (3s)</button>
+    </div>
+    <div class="action-row advanced-only hidden">
       <button class="big-btn btn-freeze" id="freezeBtn" disabled>Render Freeze Drone</button>
     </div>
     <div class="action-row">
@@ -131,9 +167,9 @@
       <button class="big-btn btn-download" id="downloadBtn" disabled>Download WAV</button>
     </div>
 
-    <div class="section-label">Tempo Sync Calculator</div>
-    <div class="control-group">
-      <div class="hint">Browsers can't read a host's transport, so this computes the stretch ratio needed to turn your trimmed clip into an exact bar-length loop at a given BPM — then sets the Stretch Factor for you.</div>
+    <div class="section-label advanced-only hidden">Tempo Sync Calculator</div>
+    <div class="control-group advanced-only hidden">
+      <div class="hint">Browsers can't read a host's transport, so this computes the stretch ratio needed to turn your trimmed clip into an exact bar-length loop at a given BPM.</div>
       <div class="three-col">
         <div><label class="hint">BPM</label><input type="number" id="bpmInput" value="120" min="20" max="300" step="0.1"></div>
         <div><label class="hint">Beats/Bar</label><input type="number" id="beatsPerBar" value="4" min="1" max="16" step="1"></div>
@@ -152,40 +188,44 @@
 
   <!-- Right Column -->
   <div class="panel">
-    <div class="section-label">Styles &amp; Presets</div>
-    <div class="presets-grid">
-      <div class="preset-card active" data-stretch="8" data-window="8192" data-phase="1.0" data-wtype="hann">
-        <div class="preset-tag">Ethereal</div><div class="preset-title">Dreamy Choir</div>
-        <div class="preset-sub">8x · balanced</div>
+    <div class="section-label">Presets</div>
+    <div class="preset-list" id="presetList">
+      <div class="preset-row active" data-stretch="8" data-window="8192" data-phase="1.0" data-wtype="hann">
+        <span class="tag">Ethereal</span><span class="name">Dreamy Choir</span><span class="sub">8x</span>
       </div>
-      <div class="preset-card" data-stretch="30" data-window="32768" data-phase="1.0" data-wtype="blackman">
-        <div class="preset-tag">Dark</div><div class="preset-title">Abyss Drone</div>
-        <div class="preset-sub">30x · huge window</div>
+      <div class="preset-row" data-stretch="30" data-window="32768" data-phase="1.0" data-wtype="blackman">
+        <span class="tag">Dark</span><span class="name">Abyss Drone</span><span class="sub">30x</span>
       </div>
-      <div class="preset-card" data-stretch="4" data-window="2048" data-phase="0.5" data-wtype="hamming">
-        <div class="preset-tag">Lo-Fi</div><div class="preset-title">Tape Ghost</div>
-        <div class="preset-sub">4x · partial smear</div>
+      <div class="preset-row" data-stretch="4" data-window="2048" data-phase="0.5" data-wtype="hamming">
+        <span class="tag">Lo-Fi</span><span class="name">Tape Ghost</span><span class="sub">4x</span>
       </div>
-      <div class="preset-card" data-stretch="60" data-window="65536" data-phase="1.0" data-wtype="blackman">
-        <div class="preset-tag">Cosmic</div><div class="preset-title">Deep Space</div>
-        <div class="preset-sub">60x · max smear</div>
+      <div class="preset-row" data-stretch="60" data-window="65536" data-phase="1.0" data-wtype="blackman">
+        <span class="tag">Cosmic</span><span class="name">Deep Space</span><span class="sub">60x</span>
       </div>
-      <div class="preset-card" data-stretch="14" data-window="16384" data-phase="0.85" data-wtype="hann">
-        <div class="preset-tag">Cinematic</div><div class="preset-title">Horror Pad</div>
-        <div class="preset-sub">14x · slight grit</div>
+      <div class="preset-row" data-stretch="14" data-window="16384" data-phase="0.85" data-wtype="hann">
+        <span class="tag">Cinematic</span><span class="name">Horror Pad</span><span class="sub">14x</span>
       </div>
-      <div class="preset-card" data-stretch="3" data-window="4096" data-phase="0.25" data-wtype="hann">
-        <div class="preset-tag">Subtle</div><div class="preset-title">Slow Swell</div>
-        <div class="preset-sub">3x · mostly intact</div>
+      <div class="preset-row" data-stretch="3" data-window="4096" data-phase="0.25" data-wtype="hann">
+        <span class="tag">Subtle</span><span class="name">Slow Swell</span><span class="sub">3x</span>
       </div>
     </div>
 
-    <div class="section-label">Stretch Engine</div>
     <div class="control-group">
       <div class="control-header"><span>Stretch Factor</span><span class="val" id="stretchVal">8.0x</span></div>
       <input type="range" id="stretch" min="1" max="100" step="0.5" value="8">
     </div>
-    <div class="two-col">
+
+    <div class="control-group">
+      <div class="control-header"><span>Reverb Space</span><span class="val" id="reverbVal">40%</span></div>
+      <input type="range" id="reverb" min="0" max="0.9" step="0.05" value="0.4">
+    </div>
+    <div class="control-group">
+      <div class="control-header"><span>Output Volume</span><span class="val" id="volVal">80%</span></div>
+      <input type="range" id="volume" min="0" max="1" step="0.05" value="0.8">
+    </div>
+
+    <div class="section-label advanced-only hidden">Stretch Engine</div>
+    <div class="two-col advanced-only hidden">
       <div class="control-group">
         <div class="control-header"><span>FFT Window Size</span></div>
         <select id="windowSize">
@@ -207,17 +247,17 @@
         </select>
       </div>
     </div>
-    <div class="control-group">
+    <div class="control-group advanced-only hidden">
       <div class="control-header"><span>Phase Randomization (Smear)</span><span class="val" id="phaseVal">100%</span></div>
       <input type="range" id="phase" min="0" max="1" step="0.01" value="1">
-      <div class="hint">0% = original phase relationships kept (clear, articulate). 100% = fully randomized (classic diffuse Paulstretch pad). Low values act like partial phase-locking, preserving more of the source's timbral clarity.</div>
+      <div class="hint">0% keeps original phase (clear). 100% is fully randomized (classic diffuse pad).</div>
     </div>
-    <div class="control-group">
+    <div class="control-group advanced-only hidden">
       <div class="checkbox-row"><input type="checkbox" id="stereoWiden" checked><label for="stereoWiden">Process channels independently (stereo widen)</label></div>
     </div>
 
-    <div class="section-label">Window Morphing <span class="badge">LFO</span></div>
-    <div class="control-group">
+    <div class="section-label advanced-only hidden">Window Morphing <span class="badge">LFO</span></div>
+    <div class="control-group advanced-only hidden">
       <div class="checkbox-row"><input type="checkbox" id="morphEnabled"><label for="morphEnabled">Morph between two window shapes over time</label></div>
       <div class="two-col">
         <div>
@@ -234,11 +274,10 @@
           <input type="range" id="morphRate" min="0.02" max="2" step="0.01" value="0.15">
         </div>
       </div>
-      <div class="hint">Slowly crossfades the analysis/synthesis window between Window Type and Window B (e.g. sharp Hann &rarr; soft Blackman), shifting texture from resonant to smooth over the render.</div>
     </div>
 
-    <div class="section-label">Spectral Shaping <span class="badge">magnitude-domain</span></div>
-    <div class="control-group">
+    <div class="section-label advanced-only hidden">Spectral Shaping <span class="badge">magnitude-domain</span></div>
+    <div class="control-group advanced-only hidden">
       <div class="three-col">
         <div><div class="control-header"><span>Low</span></div><input type="range" id="eqLow" min="-24" max="24" step="1" value="0"><div class="progress-label" id="eqLowVal">0 dB</div></div>
         <div><div class="control-header"><span>Mid</span></div><input type="range" id="eqMid" min="-24" max="24" step="1" value="0"><div class="progress-label" id="eqMidVal">0 dB</div></div>
@@ -248,18 +287,16 @@
         <div><label class="hint">Low/Mid Xover (Hz)</label><input type="number" id="eqXover1" value="400" min="50" max="4000"></div>
         <div><label class="hint">Mid/High Xover (Hz)</label><input type="number" id="eqXover2" value="4000" min="500" max="18000"></div>
       </div>
-      <div class="hint">Reshapes the magnitude spectrum before phase randomization and re-synthesis — a real spectral EQ, not a post-filter.</div>
     </div>
-    <div class="control-group">
+    <div class="control-group advanced-only hidden">
       <div class="control-header"><span>Formant Shift</span><span class="val" id="formantVal">1.00x</span></div>
       <input type="range" id="formant" min="0.5" max="2" step="0.01" value="1">
-      <div class="hint">Resamples the magnitude spectrum along frequency. &lt;1x lowers formants (bigger/darker body), &gt;1x raises them (smaller/brighter body) while the stretch/pitch engine stays untouched.</div>
     </div>
 
-    <div class="section-label">Frequency-Selective Stretch <span class="badge">multiband</span></div>
-    <div class="control-group">
+    <div class="section-label advanced-only hidden">Frequency-Selective Stretch <span class="badge">multiband</span></div>
+    <div class="control-group advanced-only hidden">
       <div class="checkbox-row"><input type="checkbox" id="multibandEnabled"><label for="multibandEnabled">Stretch bands at different ratios</label></div>
-      <div class="collapsible-body" id="multibandBody">
+      <div class="collapsible-body hidden" id="multibandBody">
         <div class="two-col">
           <div><label class="hint">Low/Mid Xover (Hz)</label><input type="number" id="mbXover1" value="300" min="50" max="4000"></div>
           <div><label class="hint">Mid/High Xover (Hz)</label><input type="number" id="mbXover2" value="3000" min="500" max="18000"></div>
@@ -270,47 +307,36 @@
         <input type="range" id="mbMidStretch" min="1" max="100" step="0.5" value="8">
         <div class="control-header"><span>High Band Stretch</span><span class="val" id="mbHighVal">40.0x</span></div>
         <input type="range" id="mbHighStretch" min="1" max="100" step="0.5" value="40">
-        <div class="hint">Keeps the low end tight (e.g. 2x) while pushing highs into a smeared wash (e.g. 40x) — bands are filter-split, stretched independently, then summed.</div>
       </div>
     </div>
 
-    <div class="section-label">Transient Preservation <span class="badge">dual-path</span></div>
-    <div class="control-group">
+    <div class="section-label advanced-only hidden">Transient Preservation <span class="badge">dual-path</span></div>
+    <div class="control-group advanced-only hidden">
       <div class="checkbox-row"><input type="checkbox" id="transientEnabled"><label for="transientEnabled">Detect &amp; keep attacks rhythmic</label></div>
-      <div class="collapsible-body" id="transientBody">
+      <div class="collapsible-body hidden" id="transientBody">
         <div class="control-header"><span>Detector Sensitivity</span><span class="val" id="transSensVal">50%</span></div>
         <input type="range" id="transSens" min="0.1" max="0.9" step="0.02" value="0.5">
         <div class="control-header"><span>Transient Layer Level</span><span class="val" id="transGainVal">80%</span></div>
         <input type="range" id="transGain" min="0" max="1.5" step="0.05" value="0.8">
-        <div class="hint">Detects sharp attacks (drum hits, plucks) via spectral-flux onset detection, ducks them out of the signal that feeds the stretch engine, then re-inserts the raw hits at their new (stretched) time positions — so the beat stays a sparse pulse over the pad instead of smearing into noise.</div>
       </div>
     </div>
 
-    <div class="section-label">Freeze / Spectral Synth</div>
-    <div class="control-group">
+    <div class="section-label advanced-only hidden">Freeze / Spectral Synth</div>
+    <div class="control-group advanced-only hidden">
       <div class="control-header"><span>Freeze Position</span><span class="val" id="freezePosVal">0%</span></div>
       <input type="range" id="freezePos" min="0" max="100" step="1" value="0">
       <div class="control-header"><span>Freeze Duration</span><span class="val" id="freezeDurVal">20s</span></div>
       <input type="range" id="freezeDur" min="5" max="120" step="1" value="20">
-      <div class="hint">Locks onto one instant of the source's spectrum and continuously re-synthesizes it with fresh random phases — turning that single moment into a playable, ever-shifting infinite drone.</div>
     </div>
 
-    <div class="section-label">Live Shaping (playback only)</div>
-    <div class="control-group">
+    <div class="section-label advanced-only hidden">Live Filters (playback only)</div>
+    <div class="control-group advanced-only hidden">
       <div class="control-header"><span>Low-Pass Cutoff</span><span class="val" id="lpVal">18000 Hz</span></div>
       <input type="range" id="lowpass" min="200" max="18000" step="50" value="18000">
     </div>
-    <div class="control-group">
+    <div class="control-group advanced-only hidden">
       <div class="control-header"><span>High-Pass Cutoff</span><span class="val" id="hpVal">20 Hz</span></div>
       <input type="range" id="highpass" min="20" max="2000" step="10" value="20">
-    </div>
-    <div class="control-group">
-      <div class="control-header"><span>Reverb Space</span><span class="val" id="reverbVal">40%</span></div>
-      <input type="range" id="reverb" min="0" max="0.9" step="0.05" value="0.4">
-    </div>
-    <div class="control-group">
-      <div class="control-header"><span>Output Volume</span><span class="val" id="volVal">80%</span></div>
-      <input type="range" id="volume" min="0" max="1" step="0.05" value="0.8">
     </div>
   </div>
 </div>
@@ -325,14 +351,25 @@ let stretchedChannels = null;
 let stretchedSampleRate = 44100;
 let liveNodes = null;
 let isPlaying = false;
+let layers = []; // { id, name, buffer, gain, muted }
+let layerIdCounter = 0;
+let playbackStartCtxTime = 0;
+let playbackOffset = 0;
+let playheadRAF = null;
+let previewSrc = null;
 
 const $ = id => document.getElementById(id);
 
 const fileInput = $('audioFile');
+const layerFileInput = $('layerFile');
+const layerList = $('layerList');
+const layerEmptyMsg = $('layerEmptyMsg');
+const layerCountBadge = $('layerCountBadge');
 const fileNameDisplay = $('fileNameDisplay');
 const durationDisplay = $('durationDisplay');
 const statusDisplay = $('statusDisplay');
 const processBtn = $('processBtn');
+const previewBtn = $('previewBtn');
 const freezeBtn = $('freezeBtn');
 const playBtn = $('playBtn');
 const stopBtn = $('stopBtn');
@@ -386,6 +423,20 @@ const targetBarsInput = $('targetBars');
 const syncBtn = $('syncBtn');
 const syncResult = $('syncResult');
 
+const modeSimpleBtn = $('modeSimpleBtn');
+const modeAdvancedBtn = $('modeAdvancedBtn');
+
+// ---------------------------------------------------------------------------
+// Simple / Advanced mode
+// ---------------------------------------------------------------------------
+function setMode(advanced) {
+  document.querySelectorAll('.advanced-only').forEach(el => el.classList.toggle('hidden', !advanced));
+  modeSimpleBtn.classList.toggle('active', !advanced);
+  modeAdvancedBtn.classList.toggle('active', advanced);
+}
+modeSimpleBtn.onclick = () => setMode(false);
+modeAdvancedBtn.onclick = () => setMode(true);
+
 // ---------------------------------------------------------------------------
 // UI wiring
 // ---------------------------------------------------------------------------
@@ -409,8 +460,20 @@ freezeDurInput.oninput = e => $('freezeDurVal').textContent = `${e.target.value}
 
 multibandEnabledInput.onchange = e => multibandBody.classList.toggle('hidden', !e.target.checked);
 transientEnabledInput.onchange = e => transientBody.classList.toggle('hidden', !e.target.checked);
-multibandBody.classList.add('hidden');
-transientBody.classList.add('hidden');
+
+trimStartInput.addEventListener('change', () => {
+  if (!sourceBuffer) return;
+  const dur = sourceBuffer.duration;
+  trimStartFrac = Math.max(0, Math.min(trimEndFrac - 0.005, (parseFloat(trimStartInput.value) || 0) / dur));
+  renderSourceView();
+});
+trimEndInput.addEventListener('change', () => {
+  if (!sourceBuffer) return;
+  const dur = sourceBuffer.duration;
+  const v = trimEndInput.value === '' ? dur : parseFloat(trimEndInput.value);
+  trimEndFrac = Math.max(trimStartFrac + 0.005, Math.min(1, (isNaN(v) ? dur : v) / dur));
+  renderSourceView();
+});
 
 syncBtn.onclick = () => {
   if (!sourceBuffer) { syncResult.textContent = 'Load audio first.'; return; }
@@ -429,21 +492,21 @@ syncBtn.onclick = () => {
   syncResult.textContent = `${clipLen.toFixed(2)}s clip -> ${targetSeconds.toFixed(2)}s (${bars} bars @ ${bpm} BPM) = ${ratio.toFixed(2)}x stretch${ratio !== clamped ? ' (clamped to range)' : ''}`;
 };
 
-document.querySelectorAll('.preset-card').forEach(card => {
-  card.addEventListener('click', () => {
-    document.querySelectorAll('.preset-card').forEach(c => c.classList.remove('active'));
-    card.classList.add('active');
-    stretchInput.value = card.dataset.stretch;
-    windowSizeInput.value = card.dataset.window;
-    phaseInput.value = card.dataset.phase;
-    windowTypeInput.value = card.dataset.wtype;
+document.querySelectorAll('.preset-row').forEach(row => {
+  row.addEventListener('click', () => {
+    document.querySelectorAll('.preset-row').forEach(c => c.classList.remove('active'));
+    row.classList.add('active');
+    stretchInput.value = row.dataset.stretch;
+    windowSizeInput.value = row.dataset.window;
+    phaseInput.value = row.dataset.phase;
+    windowTypeInput.value = row.dataset.wtype;
     stretchInput.oninput({ target: stretchInput });
     phaseInput.oninput({ target: phaseInput });
   });
 });
 
 // ---------------------------------------------------------------------------
-// File import
+// File import (primary source)
 // ---------------------------------------------------------------------------
 fileInput.addEventListener('change', (e) => {
   const file = e.target.files[0];
@@ -461,12 +524,14 @@ fileInput.addEventListener('change', (e) => {
       const secs = Math.floor(buffer.duration % 60).toString().padStart(2, '0');
       durationDisplay.textContent = `${mins}:${secs}`;
       statusDisplay.textContent = 'Ready';
-      trimStartInput.value = 0;
-      trimEndInput.value = '';
-      trimEndInput.placeholder = buffer.duration.toFixed(1) + 's (full)';
-      drawWaveform(sourceCanvas, srcCtx, buffer.getChannelData(0), '#6366f1');
+      trimStartFrac = 0;
+      trimEndFrac = 1;
+      trimStartInput.value = '0';
+      trimEndInput.value = buffer.duration.toFixed(2);
+      renderSourceView();
       outCtx.clearRect(0, 0, outputCanvas.width, outputCanvas.height);
       processBtn.disabled = false;
+      previewBtn.disabled = false;
       freezeBtn.disabled = false;
     }, (err) => {
       console.error('Decode Error:', err);
@@ -490,6 +555,47 @@ function resetOutput() {
   playBtn.disabled = true;
   downloadBtn.disabled = true;
   statusDisplay.textContent = 'Ready';
+}
+
+// ---------------------------------------------------------------------------
+// Layers (multi-file blending)
+// ---------------------------------------------------------------------------
+layerFileInput.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  initAudioContext();
+  const reader = new FileReader();
+  reader.onload = function (evt) {
+    audioCtx.decodeAudioData(evt.target.result, (buffer) => {
+      layers.push({ id: ++layerIdCounter, name: file.name, buffer, gain: 0.7, muted: false });
+      renderLayerList();
+    }, (err) => console.error('Layer decode error:', err));
+  };
+  reader.readAsArrayBuffer(file);
+  layerFileInput.value = '';
+});
+
+function renderLayerList() {
+  layerList.querySelectorAll('.layer-row').forEach(el => el.remove());
+  layerEmptyMsg.classList.toggle('hidden', layers.length > 0);
+  layerCountBadge.textContent = layers.length ? `${layers.length + 1} sources` : '1 source';
+  for (const layer of layers) {
+    const row = document.createElement('div');
+    row.className = 'layer-row';
+    row.innerHTML = `
+      <input type="checkbox" class="layer-mute" ${layer.muted ? '' : 'checked'} title="Active">
+      <span class="layer-name">${layer.name}</span>
+      <input type="range" class="layer-gain" min="0" max="1.5" step="0.05" value="${layer.gain}">
+      <button class="layer-remove">×</button>
+    `;
+    row.querySelector('.layer-mute').addEventListener('change', (e) => { layer.muted = !e.target.checked; });
+    row.querySelector('.layer-gain').addEventListener('input', (e) => { layer.gain = parseFloat(e.target.value); });
+    row.querySelector('.layer-remove').addEventListener('click', () => {
+      layers = layers.filter(l => l.id !== layer.id);
+      renderLayerList();
+    });
+    layerList.appendChild(row);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -522,7 +628,93 @@ function drawWaveform(canvas, ctx, data, color) {
 }
 
 // ---------------------------------------------------------------------------
-// Minimal iterative radix-2 complex FFT (power-of-two sizes only)
+// Draggable trim selection on the source waveform
+// ---------------------------------------------------------------------------
+let trimStartFrac = 0;
+let trimEndFrac = 1;
+let dragHandle = null;
+
+function renderSourceView() {
+  if (!sourceBuffer) return;
+  drawWaveform(sourceCanvas, srcCtx, sourceBuffer.getChannelData(0), '#6366f1');
+  drawTrimOverlay();
+}
+
+function drawTrimOverlay() {
+  const width = sourceCanvas.width, height = sourceCanvas.height;
+  const startX = trimStartFrac * width;
+  const endX = trimEndFrac * width;
+  srcCtx.save();
+  srcCtx.fillStyle = 'rgba(0,0,0,0.55)';
+  srcCtx.fillRect(0, 0, startX, height);
+  srcCtx.fillRect(endX, 0, width - endX, height);
+  srcCtx.fillStyle = 'rgba(236,72,153,0.12)';
+  srcCtx.fillRect(startX, 0, endX - startX, height);
+  srcCtx.fillStyle = '#ec4899';
+  srcCtx.fillRect(startX - 2, 0, 4, height);
+  srcCtx.fillRect(endX - 2, 0, 4, height);
+  srcCtx.beginPath(); srcCtx.arc(startX, height / 2, 8, 0, Math.PI * 2); srcCtx.fill();
+  srcCtx.beginPath(); srcCtx.arc(endX, height / 2, 8, 0, Math.PI * 2); srcCtx.fill();
+  srcCtx.restore();
+}
+
+function getCanvasX(canvas, e) {
+  const rect = canvas.getBoundingClientRect();
+  const clientX = (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX;
+  return (clientX - rect.left) * (canvas.width / rect.width);
+}
+
+function updateDragFrac(x) {
+  const width = sourceCanvas.width;
+  const minGap = 0.005;
+  let frac = Math.max(0, Math.min(1, x / width));
+  if (dragHandle === 'start') trimStartFrac = Math.max(0, Math.min(frac, trimEndFrac - minGap));
+  else if (dragHandle === 'end') trimEndFrac = Math.min(1, Math.max(frac, trimStartFrac + minGap));
+  syncTrimInputsFromFracs();
+  renderSourceView();
+}
+
+function syncTrimInputsFromFracs() {
+  if (!sourceBuffer) return;
+  const dur = sourceBuffer.duration;
+  trimStartInput.value = (trimStartFrac * dur).toFixed(2);
+  trimEndInput.value = (trimEndFrac * dur).toFixed(2);
+}
+
+sourceCanvas.addEventListener('pointerdown', (e) => {
+  if (!sourceBuffer) return;
+  const x = getCanvasX(sourceCanvas, e);
+  const width = sourceCanvas.width;
+  const startX = trimStartFrac * width, endX = trimEndFrac * width;
+  const threshold = Math.max(14, width * 0.025);
+  if (Math.abs(x - startX) <= threshold || Math.abs(x - endX) <= threshold) {
+    dragHandle = Math.abs(x - startX) <= Math.abs(x - endX) ? 'start' : 'end';
+  } else {
+    dragHandle = Math.abs(x - startX) < Math.abs(x - endX) ? 'start' : 'end';
+  }
+  try { sourceCanvas.setPointerCapture(e.pointerId); } catch (err) {}
+  updateDragFrac(x);
+  e.preventDefault();
+});
+sourceCanvas.addEventListener('pointermove', (e) => { if (dragHandle) { updateDragFrac(getCanvasX(sourceCanvas, e)); e.preventDefault(); } });
+sourceCanvas.addEventListener('pointerup', () => { dragHandle = null; });
+sourceCanvas.addEventListener('pointercancel', () => { dragHandle = null; });
+
+// Click-to-seek on the output waveform
+outputCanvas.addEventListener('pointerdown', (e) => {
+  if (!stretchedChannels) return;
+  const x = getCanvasX(outputCanvas, e);
+  const frac = Math.max(0, Math.min(1, x / outputCanvas.width));
+  const dur = stretchedChannels[0].length / stretchedSampleRate;
+  initAudioContext();
+  startPlaybackAt(frac * dur);
+  playBtn.disabled = true;
+  stopBtn.disabled = false;
+  statusDisplay.textContent = 'Playing (looped)';
+});
+
+// ---------------------------------------------------------------------------
+// FFT (main thread copy — used for quick transient analysis only)
 // ---------------------------------------------------------------------------
 class FFT {
   constructor(size) {
@@ -547,10 +739,7 @@ class FFT {
     const bri = this.bitReversedIndices;
     for (let i = 0; i < n; i++) {
       const j = bri[i];
-      if (j > i) {
-        let t = real[i]; real[i] = real[j]; real[j] = t;
-        t = imag[i]; imag[i] = imag[j]; imag[j] = t;
-      }
+      if (j > i) { let t = real[i]; real[i] = real[j]; real[j] = t; t = imag[i]; imag[i] = imag[j]; imag[j] = t; }
     }
     for (let size = 2; size <= n; size *= 2) {
       const halfsize = size / 2;
@@ -562,10 +751,8 @@ class FFT {
           const l = j + halfsize;
           const tre = real[l] * cos - imag[l] * sin;
           const tim = real[l] * sin + imag[l] * cos;
-          real[l] = real[j] - tre;
-          imag[l] = imag[j] - tim;
-          real[j] += tre;
-          imag[j] += tim;
+          real[l] = real[j] - tre; imag[l] = imag[j] - tim;
+          real[j] += tre; imag[j] += tim;
         }
       }
     }
@@ -576,18 +763,77 @@ class FFT {
 }
 const fftCache = {};
 function getFFT(size) { if (!fftCache[size]) fftCache[size] = new FFT(size); return fftCache[size]; }
-
 function generateWindow(type, N) {
   const w = new Float64Array(N);
   for (let i = 0; i < N; i++) {
     if (type === 'hamming') w[i] = 0.54 - 0.46 * Math.cos(2 * Math.PI * i / (N - 1));
     else if (type === 'blackman') w[i] = 0.42 - 0.5 * Math.cos(2 * Math.PI * i / (N - 1)) + 0.08 * Math.cos(4 * Math.PI * i / (N - 1));
     else if (type === 'gaussian') { const sigma = 0.4; const c = (N - 1) / 2; w[i] = Math.exp(-0.5 * Math.pow((i - c) / (sigma * c), 2)); }
-    else w[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (N - 1)); // hann
+    else w[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (N - 1));
   }
   return w;
 }
 
+// ---------------------------------------------------------------------------
+// Web Worker: runs the heavy stretch/freeze FFT loops off the main thread
+// ---------------------------------------------------------------------------
+const WORKER_SRC = `
+class FFT {
+  constructor(size) {
+    this.size = size;
+    this.levels = Math.round(Math.log2(size));
+    this.cosTable = new Float64Array(size / 2);
+    this.sinTable = new Float64Array(size / 2);
+    for (let i = 0; i < size / 2; i++) {
+      this.cosTable[i] = Math.cos(2 * Math.PI * i / size);
+      this.sinTable[i] = Math.sin(2 * Math.PI * i / size);
+    }
+    this.bitReversedIndices = new Uint32Array(size);
+    for (let i = 0; i < size; i++) {
+      let rev = 0, x = i;
+      for (let b = 0; b < this.levels; b++) { rev = (rev << 1) | (x & 1); x >>= 1; }
+      this.bitReversedIndices[i] = rev;
+    }
+  }
+  transform(real, imag, inverse) {
+    const n = this.size;
+    const bri = this.bitReversedIndices;
+    for (let i = 0; i < n; i++) {
+      const j = bri[i];
+      if (j > i) { let t = real[i]; real[i] = real[j]; real[j] = t; t = imag[i]; imag[i] = imag[j]; imag[j] = t; }
+    }
+    for (let size = 2; size <= n; size *= 2) {
+      const halfsize = size / 2;
+      const tablestep = n / size;
+      for (let i = 0; i < n; i += size) {
+        for (let j = i, k = 0; j < i + halfsize; j++, k += tablestep) {
+          const cos = this.cosTable[k];
+          const sin = inverse ? -this.sinTable[k] : this.sinTable[k];
+          const l = j + halfsize;
+          const tre = real[l] * cos - imag[l] * sin;
+          const tim = real[l] * sin + imag[l] * cos;
+          real[l] = real[j] - tre; imag[l] = imag[j] - tim;
+          real[j] += tre; imag[j] += tim;
+        }
+      }
+    }
+    if (inverse) { for (let i = 0; i < n; i++) { real[i] /= n; imag[i] /= n; } }
+  }
+  forward(real, imag) { this.transform(real, imag, false); }
+  inverse(real, imag) { this.transform(real, imag, true); }
+}
+const fftCache = {};
+function getFFT(size) { if (!fftCache[size]) fftCache[size] = new FFT(size); return fftCache[size]; }
+function generateWindow(type, N) {
+  const w = new Float64Array(N);
+  for (let i = 0; i < N; i++) {
+    if (type === 'hamming') w[i] = 0.54 - 0.46 * Math.cos(2 * Math.PI * i / (N - 1));
+    else if (type === 'blackman') w[i] = 0.42 - 0.5 * Math.cos(2 * Math.PI * i / (N - 1)) + 0.08 * Math.cos(4 * Math.PI * i / (N - 1));
+    else if (type === 'gaussian') { const sigma = 0.4; const c = (N - 1) / 2; w[i] = Math.exp(-0.5 * Math.pow((i - c) / (sigma * c), 2)); }
+    else w[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (N - 1));
+  }
+  return w;
+}
 function dbToLinear(db) { return Math.pow(10, db / 20); }
 function smoothstep(edge0, edge1, x) {
   if (edge0 === edge1) return x < edge0 ? 0 : 1;
@@ -605,16 +851,8 @@ function makeEqGainFn(lowDb, midDb, highDb, xover1, xover2) {
     return highLin;
   };
 }
-
-// ---------------------------------------------------------------------------
-// Core Paulstretch engine (spectral EQ, formant shift, window morph, phase blend)
-// ---------------------------------------------------------------------------
 async function stretchBuffer(input, sampleRate, opts, onProgress) {
-  const {
-    stretch, windowSize, windowType, windowTypeB, morphEnabled, morphRateHz,
-    phaseAmount, formantShift, eqGainFn
-  } = opts;
-
+  const { stretch, windowSize, windowType, windowTypeB, morphEnabled, morphRateHz, phaseAmount, formantShift, eqGainFn } = opts;
   const winA = generateWindow(windowType, windowSize);
   const winB = morphEnabled ? generateWindow(windowTypeB, windowSize) : null;
   const half = windowSize / 2;
@@ -624,17 +862,12 @@ async function stretchBuffer(input, sampleRate, opts, onProgress) {
   const outLength = Math.ceil(totalFrames * hopOut) + windowSize;
   const output = new Float64Array(outLength);
   const fft = getFFT(windowSize);
-
   const real = new Float64Array(windowSize);
   const imag = new Float64Array(windowSize);
   const magArr = new Float64Array(half + 1);
   const shiftedMag = new Float64Array(half + 1);
   let win = winA;
-
-  let inputPos = 0;
-  let frame = 0;
-  let lastYield = performance.now();
-
+  let inputPos = 0, frame = 0, lastMsg = Date.now();
   while (inputPos < input.length) {
     if (morphEnabled) {
       const t = frame * (hopOut / sampleRate);
@@ -642,7 +875,6 @@ async function stretchBuffer(input, sampleRate, opts, onProgress) {
       win = new Float64Array(windowSize);
       for (let i = 0; i < windowSize; i++) win[i] = winA[i] * (1 - blend) + winB[i] * blend;
     }
-
     const start = Math.floor(inputPos);
     for (let i = 0; i < windowSize; i++) {
       const idx = start + i;
@@ -650,7 +882,6 @@ async function stretchBuffer(input, sampleRate, opts, onProgress) {
       imag[i] = 0;
     }
     fft.forward(real, imag);
-
     for (let i = 0; i <= half; i++) {
       let mag = Math.sqrt(real[i] * real[i] + imag[i] * imag[i]);
       if (eqGainFn) mag *= eqGainFn(i * sampleRate / windowSize);
@@ -664,10 +895,7 @@ async function stretchBuffer(input, sampleRate, opts, onProgress) {
         const m1 = i1 <= half ? magArr[i1] : 0;
         shiftedMag[i] = i0 <= half ? m0 * (1 - frac) + m1 * frac : 0;
       }
-    } else {
-      shiftedMag.set(magArr);
-    }
-
+    } else shiftedMag.set(magArr);
     for (let i = 0; i <= half; i++) {
       const origPhase = Math.atan2(imag[i], real[i]);
       const randPhase = (Math.random() * 2 - 1) * Math.PI;
@@ -675,27 +903,15 @@ async function stretchBuffer(input, sampleRate, opts, onProgress) {
       const mag = shiftedMag[i];
       real[i] = mag * Math.cos(phase);
       imag[i] = mag * Math.sin(phase);
-      if (i > 0 && i < half) {
-        real[windowSize - i] = real[i];
-        imag[windowSize - i] = -imag[i];
-      }
+      if (i > 0 && i < half) { real[windowSize - i] = real[i]; imag[windowSize - i] = -imag[i]; }
     }
     fft.inverse(real, imag);
-
     const outStart = Math.round(frame * hopOut);
     for (let i = 0; i < windowSize; i++) output[outStart + i] += real[i] * win[i];
-
-    inputPos += hopIn;
-    frame++;
-
-    if (performance.now() - lastYield > 40) {
-      onProgress(Math.min(1, inputPos / input.length));
-      await new Promise(r => setTimeout(r, 0));
-      lastYield = performance.now();
-    }
+    inputPos += hopIn; frame++;
+    if (Date.now() - lastMsg > 80) { onProgress(Math.min(1, inputPos / input.length)); lastMsg = Date.now(); }
   }
   onProgress(1);
-
   let peak = 0;
   for (let i = 0; i < output.length; i++) { const a = Math.abs(output[i]); if (a > peak) peak = a; }
   const scale = peak > 0 ? 0.9 / peak : 1;
@@ -703,20 +919,15 @@ async function stretchBuffer(input, sampleRate, opts, onProgress) {
   for (let i = 0; i < output.length; i++) result[i] = output[i] * scale;
   return result;
 }
-
-// Freeze: same engine, but the analysis position never advances -- it keeps
-// re-synthesizing one fixed spectral frame with fresh random phases each hop.
 async function freezeBuffer(input, sampleRate, positionSample, windowSize, windowType, phaseAmount, durationSec, onProgress) {
   const win = generateWindow(windowType, windowSize);
-  const half = windowSize / 2;
-  const hopOut = half;
+  const half1 = windowSize / 2;
+  const hopOut = half1;
   const totalFrames = Math.ceil((durationSec * sampleRate) / hopOut) + 2;
   const outLength = totalFrames * hopOut + windowSize;
   const output = new Float64Array(outLength);
   const fft = getFFT(windowSize);
-  const real = new Float64Array(windowSize);
-  const imag = new Float64Array(windowSize);
-
+  const real = new Float64Array(windowSize), imag = new Float64Array(windowSize);
   const baseReal = new Float64Array(windowSize);
   for (let i = 0; i < windowSize; i++) {
     const idx = positionSample + i;
@@ -725,11 +936,9 @@ async function freezeBuffer(input, sampleRate, positionSample, windowSize, windo
   const anaReal = baseReal.slice();
   const anaImag = new Float64Array(windowSize);
   fft.forward(anaReal, anaImag);
-  const half1 = windowSize / 2;
   const mag = new Float64Array(half1 + 1);
   for (let i = 0; i <= half1; i++) mag[i] = Math.sqrt(anaReal[i] * anaReal[i] + anaImag[i] * anaImag[i]);
-
-  let lastYield = performance.now();
+  let lastMsg = Date.now();
   for (let frame = 0; frame < totalFrames; frame++) {
     for (let i = 0; i <= half1; i++) {
       const phase = (Math.random() * 2 - 1) * Math.PI * phaseAmount;
@@ -740,15 +949,9 @@ async function freezeBuffer(input, sampleRate, positionSample, windowSize, windo
     fft.inverse(real, imag);
     const outStart = frame * hopOut;
     for (let i = 0; i < windowSize; i++) output[outStart + i] += real[i] * win[i];
-
-    if (performance.now() - lastYield > 40) {
-      onProgress(frame / totalFrames);
-      await new Promise(r => setTimeout(r, 0));
-      lastYield = performance.now();
-    }
+    if (Date.now() - lastMsg > 80) { onProgress(frame / totalFrames); lastMsg = Date.now(); }
   }
   onProgress(1);
-
   let peak = 0;
   for (let i = 0; i < output.length; i++) { const a = Math.abs(output[i]); if (a > peak) peak = a; }
   const scale = peak > 0 ? 0.9 / peak : 1;
@@ -756,9 +959,55 @@ async function freezeBuffer(input, sampleRate, positionSample, windowSize, windo
   for (let i = 0; i < output.length; i++) result[i] = output[i] * scale;
   return result;
 }
+self.onmessage = async (e) => {
+  const { type, id, input, sampleRate, opts } = e.data;
+  const inputArr = new Float32Array(input);
+  const onProgress = (p) => self.postMessage({ type: 'progress', id, p });
+  let result;
+  try {
+    if (type === 'stretch') {
+      const eqGainFn = opts.eqParams ? makeEqGainFn(opts.eqParams.lowDb, opts.eqParams.midDb, opts.eqParams.highDb, opts.eqParams.xover1, opts.eqParams.xover2) : null;
+      result = await stretchBuffer(inputArr, sampleRate, { ...opts, eqGainFn }, onProgress);
+    } else if (type === 'freeze') {
+      result = await freezeBuffer(inputArr, sampleRate, opts.positionSample, opts.windowSize, opts.windowType, opts.phaseAmount, opts.durationSec, onProgress);
+    }
+    self.postMessage({ type: 'result', id, result: result.buffer }, [result.buffer]);
+  } catch (err) {
+    self.postMessage({ type: 'error', id, message: err.message });
+  }
+};
+`;
+
+let stretchWorker = null;
+let workerJobCounter = 0;
+const pendingWorkerJobs = {};
+
+function initWorker() {
+  if (stretchWorker) return;
+  const blob = new Blob([WORKER_SRC], { type: 'application/javascript' });
+  stretchWorker = new Worker(URL.createObjectURL(blob));
+  stretchWorker.onmessage = (e) => {
+    const { type, id } = e.data;
+    const job = pendingWorkerJobs[id];
+    if (!job) return;
+    if (type === 'progress') job.onProgress(e.data.p);
+    else if (type === 'result') { job.resolve(new Float32Array(e.data.result)); delete pendingWorkerJobs[id]; }
+    else if (type === 'error') { job.reject(new Error(e.data.message)); delete pendingWorkerJobs[id]; }
+  };
+}
+
+function runStretchJob(jobType, inputArr, sampleRate, opts, onProgress) {
+  initWorker();
+  return new Promise((resolve, reject) => {
+    const id = ++workerJobCounter;
+    pendingWorkerJobs[id] = { resolve, reject, onProgress };
+    const owned = inputArr.slice(); // own the memory before transferring
+    stretchWorker.postMessage({ type: jobType, id, input: owned.buffer, sampleRate, opts }, [owned.buffer]);
+  });
+}
 
 // ---------------------------------------------------------------------------
-// Band splitting (for frequency-selective / multiband stretch) via OfflineAudioContext
+// Band splitting (multiband) via OfflineAudioContext (main thread — fast)
 // ---------------------------------------------------------------------------
 async function renderBandFiltered(sourceArr, sampleRate, filterSpecs) {
   const OfflineCtx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
@@ -770,32 +1019,20 @@ async function renderBandFiltered(sourceArr, sampleRate, filterSpecs) {
   let node = src;
   for (const spec of filterSpecs) {
     const f = offline.createBiquadFilter();
-    f.type = spec.type;
-    f.frequency.value = spec.freq;
-    if (spec.q) f.Q.value = spec.q;
-    node.connect(f);
-    node = f;
+    f.type = spec.type; f.frequency.value = spec.freq; if (spec.q) f.Q.value = spec.q;
+    node.connect(f); node = f;
   }
   node.connect(offline.destination);
   src.start(0);
   const rendered = await offline.startRendering();
   return rendered.getChannelData(0).slice();
 }
-
 async function splitIntoBands(channelArr, sampleRate, xover1, xover2) {
-  const low = await renderBandFiltered(channelArr, sampleRate, [
-    { type: 'lowpass', freq: xover1, q: 0.707 }, { type: 'lowpass', freq: xover1, q: 0.707 }
-  ]);
-  const mid = await renderBandFiltered(channelArr, sampleRate, [
-    { type: 'highpass', freq: xover1, q: 0.707 }, { type: 'highpass', freq: xover1, q: 0.707 },
-    { type: 'lowpass', freq: xover2, q: 0.707 }, { type: 'lowpass', freq: xover2, q: 0.707 }
-  ]);
-  const high = await renderBandFiltered(channelArr, sampleRate, [
-    { type: 'highpass', freq: xover2, q: 0.707 }, { type: 'highpass', freq: xover2, q: 0.707 }
-  ]);
+  const low = await renderBandFiltered(channelArr, sampleRate, [{ type: 'lowpass', freq: xover1, q: 0.707 }, { type: 'lowpass', freq: xover1, q: 0.707 }]);
+  const mid = await renderBandFiltered(channelArr, sampleRate, [{ type: 'highpass', freq: xover1, q: 0.707 }, { type: 'highpass', freq: xover1, q: 0.707 }, { type: 'lowpass', freq: xover2, q: 0.707 }, { type: 'lowpass', freq: xover2, q: 0.707 }]);
+  const high = await renderBandFiltered(channelArr, sampleRate, [{ type: 'highpass', freq: xover2, q: 0.707 }, { type: 'highpass', freq: xover2, q: 0.707 }]);
   return { low, mid, high };
 }
-
 function sumPadded(arrays) {
   const maxLen = Math.max(...arrays.map(a => a.length));
   const out = new Float64Array(maxLen);
@@ -809,7 +1046,7 @@ function sumPadded(arrays) {
 }
 
 // ---------------------------------------------------------------------------
-// Transient detection (spectral-flux onset detector) + dual-path split
+// Transient detection (spectral-flux onset detector) — main thread, cheap
 // ---------------------------------------------------------------------------
 function detectOnsets(channelArr, sampleRate, sensitivity) {
   const frameSize = 1024, hop = 512;
@@ -818,7 +1055,6 @@ function detectOnsets(channelArr, sampleRate, sensitivity) {
   const numFrames = Math.floor((channelArr.length - frameSize) / hop);
   let prevMag = new Float64Array(frameSize / 2);
   const flux = new Float64Array(Math.max(0, numFrames));
-
   for (let f = 0; f < numFrames; f++) {
     const real = new Float64Array(frameSize), imag = new Float64Array(frameSize);
     const start = f * hop;
@@ -837,18 +1073,15 @@ function detectOnsets(channelArr, sampleRate, sensitivity) {
   let variance = 0; for (let i = 0; i < flux.length; i++) variance += (flux[i] - mean) ** 2; variance /= (flux.length || 1);
   const stddev = Math.sqrt(variance);
   const threshold = mean + stddev * (1.2 - sensitivity) * 2.2;
-
   const onsets = [];
   let lastOnsetFrame = -20;
   for (let f = 1; f < flux.length - 1; f++) {
     if (flux[f] > threshold && flux[f] > flux[f - 1] && flux[f] >= flux[f + 1] && (f - lastOnsetFrame) > 6) {
-      onsets.push(f * hop);
-      lastOnsetFrame = f;
+      onsets.push(f * hop); lastOnsetFrame = f;
     }
   }
   return onsets;
 }
-
 function buildTransientLayerAndDuckedBody(channelArr, onsets, sampleRate) {
   const snippetLen = Math.floor(sampleRate * 0.09);
   const fadeLen = Math.floor(sampleRate * 0.015);
@@ -859,8 +1092,7 @@ function buildTransientLayerAndDuckedBody(channelArr, onsets, sampleRate) {
       const idx = pos + i;
       if (idx >= channelArr.length) break;
       let g = 1;
-      if (i < fadeLen) g = i / fadeLen;
-      else if (i > snippetLen - fadeLen) g = (snippetLen - i) / fadeLen;
+      if (i < fadeLen) g = i / fadeLen; else if (i > snippetLen - fadeLen) g = (snippetLen - i) / fadeLen;
       snip[i] = channelArr[idx] * g;
       let duckG = 1;
       if (i < fadeLen) duckG = 1 - (i / fadeLen);
@@ -872,15 +1104,11 @@ function buildTransientLayerAndDuckedBody(channelArr, onsets, sampleRate) {
   });
   return { ducked, snippets };
 }
-
 function placeTransients(snippets, stretchFactor, outLength, gain) {
   const out = new Float64Array(outLength);
   for (const { pos, snip } of snippets) {
     const outPos = Math.round(pos * stretchFactor);
-    for (let i = 0; i < snip.length; i++) {
-      const idx = outPos + i;
-      if (idx >= 0 && idx < outLength) out[idx] += snip[i] * gain;
-    }
+    for (let i = 0; i < snip.length; i++) { const idx = outPos + i; if (idx >= 0 && idx < outLength) out[idx] += snip[i] * gain; }
   }
   return out;
 }
@@ -890,83 +1118,80 @@ function placeTransients(snippets, stretchFactor, outLength, gain) {
 // ---------------------------------------------------------------------------
 function nextPow2(n) { return Math.pow(2, Math.round(Math.log2(n))); }
 
-function getTrimmedChannels() {
-  const sr = sourceBuffer.sampleRate;
+function getTrimmedChannels(buffer) {
+  const sr = buffer.sampleRate;
   let tStart = Math.max(0, parseFloat(trimStartInput.value) || 0);
-  let tEnd = trimEndInput.value === '' ? sourceBuffer.duration : parseFloat(trimEndInput.value);
-  if (isNaN(tEnd) || tEnd <= tStart) tEnd = sourceBuffer.duration;
+  let tEnd = trimEndInput.value === '' ? buffer.duration : parseFloat(trimEndInput.value);
+  if (isNaN(tEnd) || tEnd <= tStart) tEnd = buffer.duration;
+  tEnd = Math.min(tEnd, buffer.duration);
+  tStart = Math.min(tStart, tEnd);
   const startSample = Math.floor(tStart * sr);
-  const endSample = Math.min(sourceBuffer.length, Math.floor(tEnd * sr));
+  const endSample = Math.min(buffer.length, Math.floor(tEnd * sr));
   const channels = [];
-  for (let c = 0; c < sourceBuffer.numberOfChannels; c++) {
-    channels.push(sourceBuffer.getChannelData(c).subarray(startSample, endSample));
-  }
+  for (let c = 0; c < buffer.numberOfChannels; c++) channels.push(buffer.getChannelData(c).subarray(startSample, endSample));
   return { channels, sr };
+}
+
+function currentEqParams() {
+  return {
+    lowDb: parseFloat(eqLowInput.value), midDb: parseFloat(eqMidInput.value), highDb: parseFloat(eqHighInput.value),
+    xover1: parseFloat(eqXover1Input.value), xover2: parseFloat(eqXover2Input.value)
+  };
+}
+function currentBaseOpts(stretch) {
+  return {
+    stretch,
+    windowSize: nextPow2(parseInt(windowSizeInput.value, 10)),
+    windowType: windowTypeInput.value,
+    windowTypeB: windowTypeBInput.value,
+    morphEnabled: morphEnabledInput.checked,
+    morphRateHz: parseFloat(morphRateInput.value),
+    phaseAmount: parseFloat(phaseInput.value),
+    formantShift: parseFloat(formantInput.value),
+    eqParams: currentEqParams()
+  };
 }
 
 processBtn.onclick = async () => {
   if (!sourceBuffer) return;
   initAudioContext();
-  processBtn.disabled = true;
-  freezeBtn.disabled = true;
-  playBtn.disabled = true;
-  downloadBtn.disabled = true;
+  processBtn.disabled = true; freezeBtn.disabled = true; playBtn.disabled = true; downloadBtn.disabled = true; previewBtn.disabled = true;
   progressWrap.classList.add('active');
   statusDisplay.textContent = 'Rendering...';
 
   const stretch = parseFloat(stretchInput.value);
-  const windowSize = nextPow2(parseInt(windowSizeInput.value, 10));
-  const windowType = windowTypeInput.value;
-  const windowTypeB = windowTypeBInput.value;
-  const morphEnabled = morphEnabledInput.checked;
-  const morphRateHz = parseFloat(morphRateInput.value);
-  const phaseAmount = parseFloat(phaseInput.value);
   const stereoWiden = stereoWidenInput.checked;
-  const formantShift = parseFloat(formantInput.value);
-  const eqGainFn = makeEqGainFn(
-    parseFloat(eqLowInput.value), parseFloat(eqMidInput.value), parseFloat(eqHighInput.value),
-    parseFloat(eqXover1Input.value), parseFloat(eqXover2Input.value)
-  );
   const multibandEnabled = multibandEnabledInput.checked;
   const transientEnabled = transientEnabledInput.checked;
+  const baseOpts = currentBaseOpts(stretch);
 
-  const { channels: inputChannels, sr } = getTrimmedChannels();
+  const { channels: inputChannels, sr } = getTrimmedChannels(sourceBuffer);
   const numChannels = inputChannels.length;
   const channelsToProcess = stereoWiden ? numChannels : 1;
+  const totalSteps = channelsToProcess + layers.filter(l => !l.muted).length;
+  let stepIndex = 0;
 
   const outChannels = [];
-
   for (let c = 0; c < channelsToProcess; c++) {
     let bodySignal = inputChannels[c];
-    let onsets = [];
     let snippets = [];
-
     if (transientEnabled) {
-      onsets = detectOnsets(bodySignal, sr, parseFloat(transSensInput.value));
+      const onsets = detectOnsets(bodySignal, sr, parseFloat(transSensInput.value));
       const split = buildTransientLayerAndDuckedBody(bodySignal, onsets, sr);
-      bodySignal = split.ducked;
-      snippets = split.snippets;
+      bodySignal = split.ducked; snippets = split.snippets;
     }
-
     let bodyResult;
     if (multibandEnabled) {
       const xover1 = parseFloat(mbXover1Input.value), xover2 = parseFloat(mbXover2Input.value);
       const bands = await splitIntoBands(bodySignal, sr, xover1, xover2);
-      const lowStretch = parseFloat(mbLowStretchInput.value);
-      const midStretch = parseFloat(mbMidStretchInput.value);
-      const highStretch = parseFloat(mbHighStretchInput.value);
-
-      const commonOpts = { windowSize, windowType, windowTypeB, morphEnabled, morphRateHz, phaseAmount, formantShift, eqGainFn: null };
-      const lowOut = await stretchBuffer(bands.low, sr, { ...commonOpts, stretch: lowStretch }, p => reportProgress(c, channelsToProcess, p, 'low band'));
-      const midOut = await stretchBuffer(bands.mid, sr, { ...commonOpts, stretch: midStretch }, p => reportProgress(c, channelsToProcess, p, 'mid band'));
-      const highOut = await stretchBuffer(bands.high, sr, { ...commonOpts, stretch: highStretch }, p => reportProgress(c, channelsToProcess, p, 'high band'));
+      const common = { ...baseOpts, eqParams: null };
+      const lowOut = await runStretchJob('stretch', bands.low, sr, { ...common, stretch: parseFloat(mbLowStretchInput.value) }, p => reportProgress(stepIndex, totalSteps, p, 'low band'));
+      const midOut = await runStretchJob('stretch', bands.mid, sr, { ...common, stretch: parseFloat(mbMidStretchInput.value) }, p => reportProgress(stepIndex, totalSteps, p, 'mid band'));
+      const highOut = await runStretchJob('stretch', bands.high, sr, { ...common, stretch: parseFloat(mbHighStretchInput.value) }, p => reportProgress(stepIndex, totalSteps, p, 'high band'));
       bodyResult = sumPadded([lowOut, midOut, highOut]);
     } else {
-      bodyResult = await stretchBuffer(bodySignal, sr, {
-        stretch, windowSize, windowType, windowTypeB, morphEnabled, morphRateHz, phaseAmount, formantShift, eqGainFn
-      }, p => reportProgress(c, channelsToProcess, p, 'stretch'));
+      bodyResult = await runStretchJob('stretch', bodySignal, sr, baseOpts, p => reportProgress(stepIndex, totalSteps, p, 'stretch'));
     }
-
     if (transientEnabled && snippets.length) {
       const transLayer = placeTransients(snippets, stretch, bodyResult.length, parseFloat(transGainInput.value));
       const mixed = new Float32Array(bodyResult.length);
@@ -976,27 +1201,51 @@ processBtn.onclick = async () => {
       for (let i = 0; i < mixed.length; i++) mixed[i] *= scale;
       bodyResult = mixed;
     }
-
     outChannels.push(bodyResult);
+    stepIndex++;
   }
-  if (!stereoWiden && numChannels > 1) {
-    for (let c = 1; c < numChannels; c++) outChannels.push(outChannels[0]);
+  if (!stereoWiden && numChannels > 1) for (let c = 1; c < numChannels; c++) outChannels.push(outChannels[0]);
+
+  // Mix in extra layers (mono, same global settings, no multiband/transients — kept simple)
+  for (const layer of layers) {
+    if (layer.muted) continue;
+    const { channels: layerChannels, sr: layerSr } = getTrimmedChannels(layer.buffer);
+    const layerResult = await runStretchJob('stretch', layerChannels[0], layerSr, baseOpts, p => reportProgress(stepIndex, totalSteps, p, layer.name));
+    mixLayerIntoOutChannels(outChannels, layerResult, layer.gain);
+    stepIndex++;
   }
+  normalizePeak(outChannels);
 
   finishRender(outChannels, sr);
 };
 
+function mixLayerIntoOutChannels(outChannels, layerResult, gain) {
+  const maxLen = Math.max(...outChannels.map(c => c.length), layerResult.length);
+  for (let c = 0; c < outChannels.length; c++) {
+    if (outChannels[c].length < maxLen) {
+      const grown = new Float32Array(maxLen);
+      grown.set(outChannels[c]);
+      outChannels[c] = grown;
+    }
+    for (let i = 0; i < layerResult.length; i++) outChannels[c][i] += layerResult[i] * gain;
+  }
+}
+function normalizePeak(channels) {
+  let peak = 0;
+  for (const c of channels) for (let i = 0; i < c.length; i++) { const a = Math.abs(c[i]); if (a > peak) peak = a; }
+  if (peak <= 0.98) return;
+  const scale = 0.95 / peak;
+  for (const c of channels) for (let i = 0; i < c.length; i++) c[i] *= scale;
+}
+
 freezeBtn.onclick = async () => {
   if (!sourceBuffer) return;
   initAudioContext();
-  processBtn.disabled = true;
-  freezeBtn.disabled = true;
-  playBtn.disabled = true;
-  downloadBtn.disabled = true;
+  processBtn.disabled = true; freezeBtn.disabled = true; playBtn.disabled = true; downloadBtn.disabled = true; previewBtn.disabled = true;
   progressWrap.classList.add('active');
   statusDisplay.textContent = 'Freezing...';
 
-  const { channels: inputChannels, sr } = getTrimmedChannels();
+  const { channels: inputChannels, sr } = getTrimmedChannels(sourceBuffer);
   const windowSize = nextPow2(parseInt(windowSizeInput.value, 10));
   const windowType = windowTypeInput.value;
   const phaseAmount = parseFloat(phaseInput.value);
@@ -1009,19 +1258,49 @@ freezeBtn.onclick = async () => {
   const outChannels = [];
   for (let c = 0; c < channelsToProcess; c++) {
     const posSample = Math.floor(posFrac * Math.max(0, inputChannels[c].length - windowSize));
-    const result = await freezeBuffer(inputChannels[c], sr, posSample, windowSize, windowType, phaseAmount, durationSec, p => reportProgress(c, channelsToProcess, p, 'freeze'));
+    const result = await runStretchJob('freeze', inputChannels[c], sr, { positionSample: posSample, windowSize, windowType, phaseAmount, durationSec }, p => reportProgress(c, channelsToProcess, p, 'freeze'));
     outChannels.push(result);
   }
-  if (!stereoWiden && numChannels > 1) {
-    for (let c = 1; c < numChannels; c++) outChannels.push(outChannels[0]);
-  }
+  if (!stereoWiden && numChannels > 1) for (let c = 1; c < numChannels; c++) outChannels.push(outChannels[0]);
   finishRender(outChannels, sr);
 };
 
-function reportProgress(c, total, p, label) {
-  const pct = Math.round(((c + p) / total) * 100);
+previewBtn.onclick = async () => {
+  if (!sourceBuffer) return;
+  initAudioContext();
+  previewBtn.disabled = true;
+  statusDisplay.textContent = 'Previewing...';
+  const stretch = parseFloat(stretchInput.value);
+  const baseOpts = currentBaseOpts(stretch);
+  const { channels, sr } = getTrimmedChannels(sourceBuffer);
+  const previewSeconds = 3;
+  const neededInputSamples = Math.min(channels[0].length, Math.ceil((previewSeconds * sr) / stretch) + baseOpts.windowSize);
+  try {
+    const result = await runStretchJob('stretch', channels[0].subarray(0, neededInputSamples), sr, baseOpts, () => {});
+    playOneShotBuffer(result, sr);
+  } finally {
+    previewBtn.disabled = false;
+    statusDisplay.textContent = sourceBuffer ? 'Ready' : 'Idle';
+  }
+};
+
+function playOneShotBuffer(floatArr, sr) {
+  if (previewSrc) { try { previewSrc.stop(); } catch (e) {} }
+  const buf = audioCtx.createBuffer(1, floatArr.length, sr);
+  buf.copyToChannel(floatArr, 0);
+  const src = audioCtx.createBufferSource();
+  src.buffer = buf;
+  const gain = audioCtx.createGain();
+  gain.gain.value = parseFloat(volumeInput.value);
+  src.connect(gain); gain.connect(audioCtx.destination);
+  src.start(0);
+  previewSrc = src;
+}
+
+function reportProgress(stepIndex, total, p, label) {
+  const pct = Math.round(((stepIndex + p) / total) * 100);
   progressFill.style.width = pct + '%';
-  progressLabel.textContent = `Processing channel ${c + 1}/${total} (${label}) — ${pct}%`;
+  progressLabel.textContent = `Processing ${stepIndex + 1}/${total} (${label}) — ${pct}%`;
 }
 
 function finishRender(outChannels, sr) {
@@ -1030,14 +1309,11 @@ function finishRender(outChannels, sr) {
   drawWaveform(outputCanvas, outCtx, stretchedChannels[0], '#ec4899');
   progressWrap.classList.remove('active');
   statusDisplay.textContent = 'Rendered';
-  processBtn.disabled = false;
-  freezeBtn.disabled = false;
-  playBtn.disabled = false;
-  downloadBtn.disabled = false;
+  processBtn.disabled = false; freezeBtn.disabled = false; playBtn.disabled = false; downloadBtn.disabled = false; previewBtn.disabled = false;
 }
 
 // ---------------------------------------------------------------------------
-// Playback with live shaping (filters + reverb)
+// Playback: seek, loop, live filters + reverb, animated playhead
 // ---------------------------------------------------------------------------
 function buildStretchedBuffer() {
   const len = stretchedChannels[0].length;
@@ -1045,7 +1321,6 @@ function buildStretchedBuffer() {
   for (let c = 0; c < stretchedChannels.length; c++) buf.copyToChannel(stretchedChannels[c], c);
   return buf;
 }
-
 function updateLiveFilters() {
   if (!liveNodes) return;
   liveNodes.lowpass.frequency.setTargetAtTime(parseFloat(lowpassInput.value), audioCtx.currentTime, 0.05);
@@ -1053,66 +1328,60 @@ function updateLiveFilters() {
   liveNodes.feedback.gain.setTargetAtTime(parseFloat(reverbInput.value), audioCtx.currentTime, 0.05);
   liveNodes.masterGain.gain.setTargetAtTime(parseFloat(volumeInput.value), audioCtx.currentTime, 0.05);
 }
-
+function startPlaybackAt(offsetSec) {
+  stopPlaybackInternal();
+  const buffer = buildStretchedBuffer();
+  const dur = buffer.duration;
+  const offset = ((offsetSec % dur) + dur) % dur;
+  const src = audioCtx.createBufferSource();
+  src.buffer = buffer; src.loop = true;
+  const highpass = audioCtx.createBiquadFilter(); highpass.type = 'highpass'; highpass.frequency.value = parseFloat(highpassInput.value);
+  const lowpass = audioCtx.createBiquadFilter(); lowpass.type = 'lowpass'; lowpass.frequency.value = parseFloat(lowpassInput.value);
+  const masterGain = audioCtx.createGain(); masterGain.gain.value = parseFloat(volumeInput.value);
+  const delay = audioCtx.createDelay(2.0); delay.delayTime.value = 0.35;
+  const feedback = audioCtx.createGain(); feedback.gain.value = parseFloat(reverbInput.value);
+  src.connect(highpass); highpass.connect(lowpass); lowpass.connect(masterGain); masterGain.connect(audioCtx.destination);
+  lowpass.connect(delay); delay.connect(feedback); feedback.connect(delay); feedback.connect(masterGain);
+  src.start(0, offset);
+  liveNodes = { src, highpass, lowpass, masterGain, delay, feedback };
+  playbackStartCtxTime = audioCtx.currentTime;
+  playbackOffset = offset;
+  isPlaying = true;
+  startPlayheadLoop(dur);
+}
 playBtn.onclick = () => {
   if (!stretchedChannels) return;
   initAudioContext();
-  stopPlayback();
-
-  const buffer = buildStretchedBuffer();
-  const src = audioCtx.createBufferSource();
-  src.buffer = buffer;
-  src.loop = true;
-
-  const highpass = audioCtx.createBiquadFilter();
-  highpass.type = 'highpass';
-  highpass.frequency.value = parseFloat(highpassInput.value);
-
-  const lowpass = audioCtx.createBiquadFilter();
-  lowpass.type = 'lowpass';
-  lowpass.frequency.value = parseFloat(lowpassInput.value);
-
-  const masterGain = audioCtx.createGain();
-  masterGain.gain.value = parseFloat(volumeInput.value);
-
-  const delay = audioCtx.createDelay(2.0);
-  delay.delayTime.value = 0.35;
-  const feedback = audioCtx.createGain();
-  feedback.gain.value = parseFloat(reverbInput.value);
-
-  src.connect(highpass);
-  highpass.connect(lowpass);
-  lowpass.connect(masterGain);
-  masterGain.connect(audioCtx.destination);
-
-  lowpass.connect(delay);
-  delay.connect(feedback);
-  feedback.connect(delay);
-  feedback.connect(masterGain);
-
-  src.start(0);
-  liveNodes = { src, highpass, lowpass, masterGain, delay, feedback };
-  isPlaying = true;
-  playBtn.disabled = true;
-  stopBtn.disabled = false;
+  startPlaybackAt(0);
+  playBtn.disabled = true; stopBtn.disabled = false;
   statusDisplay.textContent = 'Playing (looped)';
 };
-
-function stopPlayback() {
-  if (liveNodes && liveNodes.src) {
-    try { liveNodes.src.stop(); } catch (e) {}
-    liveNodes.src.disconnect();
-  }
+function stopPlaybackInternal() {
+  if (liveNodes && liveNodes.src) { try { liveNodes.src.stop(); } catch (e) {} liveNodes.src.disconnect(); }
   liveNodes = null;
-  isPlaying = false;
+  cancelAnimationFrame(playheadRAF);
 }
-
 stopBtn.onclick = () => {
-  stopPlayback();
-  playBtn.disabled = false;
-  stopBtn.disabled = true;
+  stopPlaybackInternal();
+  isPlaying = false;
+  if (stretchedChannels) drawWaveform(outputCanvas, outCtx, stretchedChannels[0], '#ec4899');
+  playBtn.disabled = false; stopBtn.disabled = true;
   statusDisplay.textContent = 'Rendered';
 };
+function startPlayheadLoop(duration) {
+  cancelAnimationFrame(playheadRAF);
+  function tick() {
+    if (!isPlaying) return;
+    const elapsed = (playbackOffset + (audioCtx.currentTime - playbackStartCtxTime)) % duration;
+    drawWaveform(outputCanvas, outCtx, stretchedChannels[0], '#ec4899');
+    const width = outputCanvas.width, height = outputCanvas.height;
+    const x = (elapsed / duration) * width;
+    outCtx.strokeStyle = '#ffffff'; outCtx.lineWidth = 2;
+    outCtx.beginPath(); outCtx.moveTo(x, 0); outCtx.lineTo(x, height); outCtx.stroke();
+    playheadRAF = requestAnimationFrame(tick);
+  }
+  tick();
+}
 
 // ---------------------------------------------------------------------------
 // WAV export
@@ -1126,41 +1395,28 @@ function encodeWAV(channels, sampleRate) {
   const buffer = new ArrayBuffer(44 + dataSize);
   const view = new DataView(buffer);
   function writeString(offset, str) { for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i)); }
-  writeString(0, 'RIFF');
-  view.setUint32(4, 36 + dataSize, true);
-  writeString(8, 'WAVE');
-  writeString(12, 'fmt ');
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);
-  view.setUint16(22, numChannels, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * blockAlign, true);
-  view.setUint16(32, blockAlign, true);
-  view.setUint16(34, 16, true);
-  writeString(36, 'data');
-  view.setUint32(40, dataSize, true);
+  writeString(0, 'RIFF'); view.setUint32(4, 36 + dataSize, true); writeString(8, 'WAVE');
+  writeString(12, 'fmt '); view.setUint32(16, 16, true); view.setUint16(20, 1, true);
+  view.setUint16(22, numChannels, true); view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * blockAlign, true); view.setUint16(32, blockAlign, true); view.setUint16(34, 16, true);
+  writeString(36, 'data'); view.setUint32(40, dataSize, true);
   let offset = 44;
   for (let i = 0; i < numSamples; i++) {
     for (let c = 0; c < numChannels; c++) {
       let s = Math.max(-1, Math.min(1, channels[c][i]));
       s = s < 0 ? s * 0x8000 : s * 0x7FFF;
-      view.setInt16(offset, s, true);
-      offset += 2;
+      view.setInt16(offset, s, true); offset += 2;
     }
   }
   return new Blob([buffer], { type: 'audio/wav' });
 }
-
 downloadBtn.onclick = () => {
   if (!stretchedChannels) return;
   const blob = encodeWAV(stretchedChannels, stretchedSampleRate);
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url;
-  a.download = 'paulstretch_soundscape.wav';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+  a.href = url; a.download = 'wavstretch_soundscape.wav';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 };
 </script>
