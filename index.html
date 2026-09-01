@@ -89,6 +89,18 @@
   .timeline-bar.main-bar { background: linear-gradient(135deg, #6366f1, #4f46e5); }
   .timeline-bar.muted-bar { opacity: 0.2; filter: grayscale(1); }
   .timeline-bar.solo-bar { outline: 2px solid var(--amber); outline-offset: -1px; }
+  .timeline-toolbar { display: flex; align-items: center; gap: 8px; }
+  .timeline-status { font-size: 0.68rem; color: var(--text-muted); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .btn-mini { background: var(--card-hover); border: 1px solid var(--border); color: var(--text-main); border-radius: 6px; padding: 6px 10px; font-size: 0.7rem; font-weight: 700; cursor: pointer; flex-shrink: 0; }
+  .btn-mini:disabled { opacity: 0.4; cursor: default; }
+  .timeline-track { border-radius: 6px; padding: 2px 3px; margin: 0 -3px; cursor: pointer; }
+  .timeline-track.selected { background: var(--pink-glow); }
+  .timeline-preview-btn { background: var(--card-hover); border: 1px solid var(--border); color: var(--text-main); border-radius: 50%; width: 20px; height: 20px; font-size: 0.55rem; cursor: pointer; flex-shrink: 0; padding: 0; line-height: 1; }
+  .timeline-preview-btn.playing { background: var(--green); border-color: var(--green); color: #062b12; }
+  .timeline-wrap-mini { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+  .layer-row.layer-row-flash { animation: layerFlash 0.9s ease; }
+  .layer-row .layer-replace { background: var(--card-hover); border: 1px solid var(--border); color: var(--text-main); border-radius: 6px; width: 22px; height: 22px; font-size: 0.72rem; cursor: pointer; flex-shrink: 0; padding: 0; line-height: 1; }
+  @keyframes layerFlash { 0% { border-color: var(--accent-pink); box-shadow: 0 0 0 2px var(--pink-glow); } 100% { border-color: var(--border); box-shadow: none; } }
 
   .control-group { background: var(--card-bg); padding: 14px; border-radius: 10px; border: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
   .control-header { display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--text-muted); }
@@ -171,7 +183,12 @@
 
     <div class="section-label">Timeline <span class="badge">arrangement</span></div>
     <div class="control-group">
-      <div class="hint">Shows where each layer sits relative to the source, and its estimated rendered length. Tap S to solo a track (mutes everything else); dimmed bars are muted.</div>
+      <div class="hint">Shows where each layer sits relative to the source, and its estimated rendered length. Tap S to solo a track (mutes everything else); dimmed bars are muted. Tap a track to select it, then Copy/Paste to duplicate it on the timeline. Use the ▶ button to preview an individual sample.</div>
+      <div class="timeline-toolbar">
+        <span class="timeline-status" id="timelineStatus">Tap a track to select it</span>
+        <button class="btn-mini" id="timelineCopyBtn" type="button" disabled>Copy</button>
+        <button class="btn-mini" id="timelinePasteBtn" type="button" disabled>Paste</button>
+      </div>
       <div class="timeline-wrap" id="timelineWrap">
         <div class="timeline-empty" id="timelineEmptyMsg">Load audio to see the arrangement.</div>
         <div class="timeline-ruler" id="timelineRuler"></div>
@@ -186,6 +203,11 @@
       </div>
       <div class="canvas-container"><canvas id="outputCanvas"></canvas></div>
       <div class="hint" style="margin-top:8px;">Click the output waveform to seek playback.</div>
+      <div class="timeline-wrap timeline-wrap-mini" id="timelineWrap2">
+        <div class="timeline-empty" id="timelineEmptyMsg2">Load audio to see the arrangement.</div>
+        <div class="timeline-ruler" id="timelineRuler2"></div>
+        <div class="timeline-tracks" id="timelineTracks2"></div>
+      </div>
     </div>
 
     <div class="progress-wrap" id="progressWrap">
@@ -434,6 +456,10 @@ let stemPadChannels = null;
 let stemTransientChannels = null;
 let layerIdCounter = 0;
 let mainSolo = false;
+let selectedTimelineKey = null;
+let clipboardLayer = null;
+let previewNode = null;
+let previewingKey = null;
 let playbackStartCtxTime = 0;
 let playbackOffset = 0;
 let playheadRAF = null;
@@ -448,9 +474,17 @@ const layerEmptyMsg = $('layerEmptyMsg');
 const layerCountBadge = $('layerCountBadge');
 const autoBalanceAllBtn = $('autoBalanceAllBtn');
 const mainSoloBtn = $('mainSoloBtn');
+const timelineWrap = $('timelineWrap');
 const timelineTracks = $('timelineTracks');
 const timelineRuler = $('timelineRuler');
 const timelineEmptyMsg = $('timelineEmptyMsg');
+const timelineWrap2 = $('timelineWrap2');
+const timelineTracks2 = $('timelineTracks2');
+const timelineRuler2 = $('timelineRuler2');
+const timelineEmptyMsg2 = $('timelineEmptyMsg2');
+const timelineCopyBtn = $('timelineCopyBtn');
+const timelinePasteBtn = $('timelinePasteBtn');
+const timelineStatus = $('timelineStatus');
 const fileNameDisplay = $('fileNameDisplay');
 const durationDisplay = $('durationDisplay');
 const statusDisplay = $('statusDisplay');
@@ -626,6 +660,7 @@ fileInput.addEventListener('change', (e) => {
   if (!file) return;
   fileNameDisplay.textContent = file.name;
   statusDisplay.textContent = 'Loading...';
+  stopPreview();
   resetOutput();
 
   const reader = new FileReader();
@@ -778,14 +813,159 @@ function estimateLayerDuration(layer) {
   tStart = Math.min(tStart, tEnd);
   return Math.max(0, (tEnd - tStart) * layer.stretch);
 }
-function renderTimeline() {
-  if (!sourceBuffer) {
-    timelineTracks.innerHTML = '';
-    timelineRuler.innerHTML = '';
-    timelineEmptyMsg.classList.remove('hidden');
+// ---------------------------------------------------------------------------
+// Timeline: preview, selection, copy/paste
+// ---------------------------------------------------------------------------
+function stopPreview() {
+  const wasPreviewing = previewingKey !== null;
+  if (previewNode) {
+    try { previewNode.stop(); } catch (e) {}
+    try { previewNode.disconnect(); } catch (e) {}
+  }
+  previewNode = null;
+  previewingKey = null;
+  if (wasPreviewing) renderTimeline();
+}
+function playPreview(buffer, tStart, tEnd, gain, key) {
+  initAudioContext();
+  stopPreview();
+  const bufDur = buffer.duration;
+  tEnd = Math.min((tEnd == null || isNaN(tEnd)) ? bufDur : tEnd, bufDur);
+  tStart = Math.max(0, Math.min(tStart || 0, tEnd));
+  const dur = Math.max(0.02, tEnd - tStart);
+  const src = audioCtx.createBufferSource();
+  src.buffer = buffer;
+  const g = audioCtx.createGain();
+  g.gain.value = (gain == null || isNaN(gain)) ? 1 : gain;
+  src.connect(g).connect(audioCtx.destination);
+  src.onended = () => {
+    if (previewingKey === key) { previewNode = null; previewingKey = null; renderTimeline(); }
+  };
+  src.start(0, tStart, dur);
+  previewNode = src;
+  previewingKey = key;
+  renderTimeline();
+}
+function togglePreview(key) {
+  if (previewingKey === key) { stopPreview(); renderTimeline(); return; }
+  if (key === 'main') {
+    if (!sourceBuffer) return;
+    const dur = sourceBuffer.duration;
+    playPreview(sourceBuffer, trimStartFrac * dur, trimEndFrac * dur, 1, key);
+  } else {
+    const layer = layers.find(l => String(l.id) === String(key));
+    if (!layer) return;
+    playPreview(layer.buffer, layer.trimStart, layer.trimEnd, layer.gain, key);
+  }
+}
+function timelineTrackName(key) {
+  if (key === 'main') return (fileNameDisplay.textContent || 'Source');
+  const layer = layers.find(l => String(l.id) === String(key));
+  return layer ? layer.name : '';
+}
+function updateTimelineToolbar() {
+  timelineCopyBtn.disabled = !selectedTimelineKey || (selectedTimelineKey === 'main' && !sourceBuffer);
+  timelinePasteBtn.disabled = !clipboardLayer;
+  if (selectedTimelineKey) {
+    timelineStatus.textContent = `Selected: ${timelineTrackName(selectedTimelineKey)}`;
+  } else if (clipboardLayer) {
+    timelineStatus.textContent = `Clipboard: ${clipboardLayer.name} — tap Paste to duplicate`;
+  } else {
+    timelineStatus.textContent = 'Tap a track to select it';
+  }
+}
+function selectTimelineTrack(key) {
+  selectedTimelineKey = (selectedTimelineKey === key) ? null : key;
+  updateTimelineToolbar();
+  renderTimeline();
+  if (selectedTimelineKey && selectedTimelineKey !== 'main') {
+    const row = layerList.querySelector(`.layer-row[data-layer-id="${selectedTimelineKey}"]`);
+    if (row) {
+      row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      row.classList.add('layer-row-flash');
+      setTimeout(() => row.classList.remove('layer-row-flash'), 900);
+    }
+  }
+}
+function handleTimelineClick(e) {
+  const previewBtnEl = e.target.closest('.timeline-preview-btn');
+  if (previewBtnEl) {
+    e.stopPropagation();
+    togglePreview(previewBtnEl.dataset.key);
     return;
   }
-  timelineEmptyMsg.classList.add('hidden');
+  const track = e.target.closest('.timeline-track');
+  if (track) selectTimelineTrack(track.dataset.key);
+}
+timelineWrap.addEventListener('click', handleTimelineClick);
+timelineWrap2.addEventListener('click', handleTimelineClick);
+
+timelineCopyBtn.onclick = () => {
+  if (!selectedTimelineKey) return;
+  if (selectedTimelineKey === 'main') {
+    if (!sourceBuffer) return;
+    clipboardLayer = {
+      name: fileNameDisplay.textContent || 'Source',
+      buffer: sourceBuffer,
+      gain: 1,
+      stretch: parseFloat(stretchInput.value),
+      windowSize: nextPow2(parseInt(windowSizeInput.value, 10)),
+      windowType: windowTypeInput.value,
+      phaseAmount: parseFloat(phaseInput.value),
+      presetIndex: -1,
+      trimStart: trimStartFrac * sourceBuffer.duration,
+      trimEnd: trimEndFrac * sourceBuffer.duration,
+      startOffset: 0,
+      duration: estimateMainDuration()
+    };
+  } else {
+    const layer = layers.find(l => String(l.id) === String(selectedTimelineKey));
+    if (!layer) return;
+    clipboardLayer = {
+      name: layer.name, buffer: layer.buffer, gain: layer.gain,
+      stretch: layer.stretch, windowSize: layer.windowSize, windowType: layer.windowType,
+      phaseAmount: layer.phaseAmount, presetIndex: layer.presetIndex,
+      trimStart: layer.trimStart, trimEnd: layer.trimEnd,
+      startOffset: layer.startOffset, duration: estimateLayerDuration(layer)
+    };
+  }
+  updateTimelineToolbar();
+};
+timelinePasteBtn.onclick = () => {
+  if (!clipboardLayer) return;
+  const c = clipboardLayer;
+  layers.push({
+    id: ++layerIdCounter,
+    name: `${c.name} copy`,
+    buffer: c.buffer,
+    gain: c.gain,
+    muted: false, solo: false,
+    stretch: c.stretch,
+    windowSize: c.windowSize,
+    windowType: c.windowType,
+    phaseAmount: c.phaseAmount,
+    presetIndex: c.presetIndex,
+    startOffset: Math.max(0, (c.startOffset || 0) + (c.duration || 0)),
+    trimStart: c.trimStart,
+    trimEnd: c.trimEnd
+  });
+  renderLayerList();
+};
+
+function renderTimeline() {
+  const instances = [
+    { tracks: timelineTracks, ruler: timelineRuler, empty: timelineEmptyMsg },
+    { tracks: timelineTracks2, ruler: timelineRuler2, empty: timelineEmptyMsg2 }
+  ];
+  if (!sourceBuffer) {
+    for (const inst of instances) {
+      inst.tracks.innerHTML = '';
+      inst.ruler.innerHTML = '';
+      inst.empty.classList.remove('hidden');
+    }
+    return;
+  }
+  for (const inst of instances) inst.empty.classList.add('hidden');
 
   const mainDur = estimateMainDuration();
   const layerInfo = layers.map(layer => ({ layer, dur: estimateLayerDuration(layer), start: layer.startOffset || 0 }));
@@ -799,12 +979,14 @@ function renderTimeline() {
     const pct = (i / tickCount) * 100;
     rulerHtml += `<span style="left:${pct}%">${formatTimelineTime(totalDur * i / tickCount)}</span>`;
   }
-  timelineRuler.innerHTML = rulerHtml;
 
   const mainMutedEff = isMainEffectivelyMuted();
   const mainWidthPct = Math.max(0, (mainDur / totalDur) * 100);
+  const mainSelected = selectedTimelineKey === 'main';
+  const mainPreviewIcon = previewingKey === 'main' ? '■' : '▶';
   let tracksHtml = `
-    <div class="timeline-track">
+    <div class="timeline-track ${mainSelected ? 'selected' : ''}" data-key="main">
+      <button class="timeline-preview-btn ${previewingKey === 'main' ? 'playing' : ''}" data-key="main" type="button" title="Preview the source">${mainPreviewIcon}</button>
       <div class="timeline-track-label">Source</div>
       <div class="timeline-track-lane">
         <div class="timeline-bar main-bar ${mainMutedEff ? 'muted-bar' : ''} ${mainSolo ? 'solo-bar' : ''}" style="left:0%;width:${mainWidthPct}%"></div>
@@ -814,15 +996,22 @@ function renderTimeline() {
     const startPct = Math.max(0, Math.min(100, (start / totalDur) * 100));
     const widthPct = Math.max(0, (dur / totalDur) * 100);
     const mutedEff = isLayerEffectivelyMuted(layer);
+    const key = String(layer.id);
+    const isSelected = selectedTimelineKey === key;
+    const previewIcon = previewingKey === key ? '■' : '▶';
     tracksHtml += `
-      <div class="timeline-track">
+      <div class="timeline-track ${isSelected ? 'selected' : ''}" data-key="${key}">
+        <button class="timeline-preview-btn ${previewingKey === key ? 'playing' : ''}" data-key="${key}" type="button" title="Preview this layer">${previewIcon}</button>
         <div class="timeline-track-label" title="${layer.name}">${layer.name}</div>
         <div class="timeline-track-lane">
           <div class="timeline-bar ${mutedEff ? 'muted-bar' : ''} ${layer.solo ? 'solo-bar' : ''}" style="left:${startPct}%;width:${widthPct}%"></div>
         </div>
       </div>`;
   }
-  timelineTracks.innerHTML = tracksHtml;
+  for (const inst of instances) {
+    inst.ruler.innerHTML = rulerHtml;
+    inst.tracks.innerHTML = tracksHtml;
+  }
 }
 
 function renderLayerList() {
@@ -833,11 +1022,14 @@ function renderLayerList() {
   for (const layer of layers) {
     const row = document.createElement('div');
     row.className = `layer-row ${isLayerEffectivelyMuted(layer) ? 'layer-row-muted' : ''}`;
+    row.dataset.layerId = String(layer.id);
     row.innerHTML = `
       <div class="layer-row-top">
         <input type="checkbox" class="layer-mute" ${layer.muted ? '' : 'checked'} title="Active">
         <span class="layer-name">${layer.name}</span>
         <button class="solo-btn layer-solo ${layer.solo ? 'active' : ''}" type="button" title="Solo this layer (mutes source and other layers)">S</button>
+        <button class="layer-replace" type="button" title="Change sample (keeps this layer's settings)">⇄</button>
+        <input type="file" class="layer-replace-file" accept=".wav,.mp3,.m4a,.aac,.flac,audio/*" style="display:none">
         <button class="layer-remove">×</button>
       </div>
       <div class="layer-row-mid">
@@ -910,8 +1102,33 @@ function renderLayerList() {
       renderTimeline();
     });
     row.querySelector('.layer-remove').addEventListener('click', () => {
+      if (previewingKey === String(layer.id)) stopPreview();
+      if (selectedTimelineKey === String(layer.id)) selectedTimelineKey = null;
       layers = layers.filter(l => l.id !== layer.id);
       renderLayerList();
+      updateTimelineToolbar();
+    });
+    row.querySelector('.layer-replace').addEventListener('click', () => {
+      row.querySelector('.layer-replace-file').click();
+    });
+    row.querySelector('.layer-replace-file').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      initAudioContext();
+      const reader = new FileReader();
+      reader.onload = function (evt) {
+        audioCtx.decodeAudioData(evt.target.result, (buffer) => {
+          if (previewingKey === String(layer.id)) stopPreview();
+          layer.buffer = buffer;
+          layer.name = file.name;
+          const bufDur = buffer.duration;
+          layer.trimEnd = Math.min(layer.trimEnd == null ? bufDur : layer.trimEnd, bufDur);
+          layer.trimStart = Math.min(layer.trimStart || 0, layer.trimEnd);
+          if (layer.trimEnd - layer.trimStart < 0.05) { layer.trimStart = 0; layer.trimEnd = bufDur; }
+          renderLayerList();
+        }, (err) => console.error('Layer replace decode error:', err));
+      };
+      reader.readAsArrayBuffer(file);
     });
     row.querySelector('.layer-stretch').addEventListener('change', (e) => {
       layer.stretch = Math.max(1, Math.min(100, parseFloat(e.target.value) || 1));
@@ -1502,6 +1719,7 @@ function currentBaseOpts(stretch) {
 processBtn.onclick = async () => {
   if (!sourceBuffer) return;
   initAudioContext();
+  stopPreview();
   processBtn.disabled = true; freezeBtn.disabled = true; playBtn.disabled = true; downloadBtn.disabled = true; previewBtn.disabled = true;
   stemPadBtn.disabled = true; stemTransientBtn.disabled = true;
   progressWrap.classList.add('active');
@@ -1648,6 +1866,7 @@ function normalizePeak(channels) {
 freezeBtn.onclick = async () => {
   if (!sourceBuffer) return;
   initAudioContext();
+  stopPreview();
   processBtn.disabled = true; freezeBtn.disabled = true; playBtn.disabled = true; downloadBtn.disabled = true; previewBtn.disabled = true;
   stemPadChannels = null; stemTransientChannels = null;
   stemPadBtn.disabled = true; stemTransientBtn.disabled = true;
@@ -1677,6 +1896,7 @@ freezeBtn.onclick = async () => {
 previewBtn.onclick = async () => {
   if (!sourceBuffer) return;
   initAudioContext();
+  stopPreview();
   previewBtn.disabled = true;
   statusDisplay.textContent = 'Previewing...';
   const stretch = parseFloat(stretchInput.value);
@@ -1761,6 +1981,7 @@ function startPlaybackAt(offsetSec) {
 playBtn.onclick = () => {
   if (!stretchedChannels) return;
   initAudioContext();
+  stopPreview();
   startPlaybackAt(0);
   playBtn.disabled = true; stopBtn.disabled = false;
   statusDisplay.textContent = 'Playing (looped)';
