@@ -64,6 +64,8 @@
   .layer-row .layer-stretch { width: 52px; font-size: 0.72rem; padding: 5px 4px; text-align: center; }
   .layer-row .layer-start { width: 64px; font-size: 0.72rem; padding: 5px 4px; text-align: center; }
   .layer-row .layer-start-label { font-size: 0.65rem; color: var(--text-muted); white-space: nowrap; }
+  .layer-row .layer-gain-val { font-size: 0.65rem; color: var(--text-muted); white-space: nowrap; width: 36px; flex-shrink: 0; }
+  .layer-row .layer-autogain { background: var(--card-hover); border: 1px solid var(--border); color: var(--text-main); border-radius: 6px; width: 24px; height: 24px; font-size: 0.75rem; cursor: pointer; flex-shrink: 0; }
   .layer-row input[type="range"] { width: 60px; flex: 1; }
   .layer-row .layer-remove { background: #ef4444; color: white; border: none; border-radius: 6px; width: 22px; height: 22px; font-size: 0.8rem; cursor: pointer; flex-shrink: 0; }
   .layer-row input[type="checkbox"] { width: 15px; height: 15px; flex-shrink: 0; }
@@ -137,11 +139,14 @@
 
     <div class="section-label">Layers <span class="badge" id="layerCountBadge">1 source</span></div>
     <div class="control-group">
-      <div class="hint">Blend extra files underneath the main source — each layer gets its own preset/stretch, start time, and gain, then mixes into the final render.</div>
+      <div class="hint">Blend extra files underneath the main source — each layer gets its own preset/stretch, start time, and gain, then mixes into the final render. New layers auto-gain to roughly match the main source's loudness.</div>
       <div class="layer-list" id="layerList">
         <div class="layer-empty" id="layerEmptyMsg">No extra layers added.</div>
       </div>
-      <label for="layerFile" class="file-btn secondary" style="text-align:center;">+ Add Layer</label>
+      <div class="two-col">
+        <label for="layerFile" class="file-btn secondary" style="text-align:center;">+ Add Layer</label>
+        <button class="file-btn secondary" id="autoBalanceAllBtn" type="button">Auto-Balance All</button>
+      </div>
       <input type="file" id="layerFile" accept=".wav,.mp3,.m4a,.aac,.flac,audio/*">
     </div>
 
@@ -411,6 +416,7 @@ const layerFileInput = $('layerFile');
 const layerList = $('layerList');
 const layerEmptyMsg = $('layerEmptyMsg');
 const layerCountBadge = $('layerCountBadge');
+const autoBalanceAllBtn = $('autoBalanceAllBtn');
 const fileNameDisplay = $('fileNameDisplay');
 const durationDisplay = $('durationDisplay');
 const statusDisplay = $('statusDisplay');
@@ -635,6 +641,23 @@ function resetOutput() {
 // ---------------------------------------------------------------------------
 // Layers (multi-file blending)
 // ---------------------------------------------------------------------------
+function computeRMS(arr) {
+  if (!arr || !arr.length) return 0;
+  let sum = 0;
+  const step = Math.max(1, Math.floor(arr.length / 200000)); // sample down for speed on huge buffers
+  let count = 0;
+  for (let i = 0; i < arr.length; i += step) { sum += arr[i] * arr[i]; count++; }
+  return Math.sqrt(sum / Math.max(1, count));
+}
+function suggestLayerGain(layerBuffer) {
+  if (!sourceBuffer) return 0.7;
+  const sourceRMS = computeRMS(getTrimmedChannels(sourceBuffer).channels[0]);
+  const layerRMS = computeRMS(getTrimmedChannels(layerBuffer).channels[0]);
+  if (sourceRMS <= 0 || layerRMS <= 0) return 0.7;
+  const ratio = sourceRMS / layerRMS;
+  return Math.round(Math.max(0.05, Math.min(1.5, ratio)) * 100) / 100;
+}
+
 layerFileInput.addEventListener('change', (e) => {
   const file = e.target.files[0];
   if (!file) return;
@@ -643,7 +666,7 @@ layerFileInput.addEventListener('change', (e) => {
   reader.onload = function (evt) {
     audioCtx.decodeAudioData(evt.target.result, (buffer) => {
       layers.push({
-        id: ++layerIdCounter, name: file.name, buffer, gain: 0.7, muted: false,
+        id: ++layerIdCounter, name: file.name, buffer, gain: suggestLayerGain(buffer), muted: false,
         stretch: parseFloat(stretchInput.value),
         windowSize: nextPow2(parseInt(windowSizeInput.value, 10)),
         windowType: windowTypeInput.value,
@@ -657,6 +680,11 @@ layerFileInput.addEventListener('change', (e) => {
   reader.readAsArrayBuffer(file);
   layerFileInput.value = '';
 });
+
+autoBalanceAllBtn.onclick = () => {
+  for (const layer of layers) layer.gain = suggestLayerGain(layer.buffer);
+  renderLayerList();
+};
 
 function renderLayerList() {
   layerList.querySelectorAll('.layer-row').forEach(el => el.remove());
@@ -683,11 +711,21 @@ function renderLayerList() {
         <span class="layer-start-label">Start</span>
         <input type="number" class="layer-start" min="0" step="0.5" value="${layer.startOffset || 0}" title="Start offset (seconds into the output)">
         <input type="range" class="layer-gain" min="0" max="1.5" step="0.05" value="${layer.gain}" title="Layer volume">
+        <span class="layer-gain-val">${layer.gain.toFixed(2)}x</span>
+        <button class="layer-autogain" title="Auto-gain to match main source loudness">⚖</button>
       </div>
     `;
     if (layer.presetIndex >= 0) row.querySelector('.layer-preset').value = String(layer.presetIndex);
     row.querySelector('.layer-mute').addEventListener('change', (e) => { layer.muted = !e.target.checked; });
-    row.querySelector('.layer-gain').addEventListener('input', (e) => { layer.gain = parseFloat(e.target.value); });
+    row.querySelector('.layer-gain').addEventListener('input', (e) => {
+      layer.gain = parseFloat(e.target.value);
+      row.querySelector('.layer-gain-val').textContent = `${layer.gain.toFixed(2)}x`;
+    });
+    row.querySelector('.layer-autogain').addEventListener('click', () => {
+      layer.gain = suggestLayerGain(layer.buffer);
+      row.querySelector('.layer-gain').value = layer.gain;
+      row.querySelector('.layer-gain-val').textContent = `${layer.gain.toFixed(2)}x`;
+    });
     row.querySelector('.layer-start').addEventListener('change', (e) => {
       layer.startOffset = Math.max(0, parseFloat(e.target.value) || 0);
     });
