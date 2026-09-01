@@ -63,7 +63,7 @@
   .layer-row .layer-name { font-size: 0.78rem; font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .layer-row .layer-preset { flex: 1.4; font-size: 0.72rem; padding: 5px 6px; }
   .layer-row .layer-stretch { width: 52px; font-size: 0.72rem; padding: 5px 4px; text-align: center; }
-  .layer-row .layer-start { width: 64px; font-size: 0.72rem; padding: 5px 4px; text-align: center; }
+  .layer-row .layer-start, .layer-row .layer-trim-field { width: 64px; font-size: 0.72rem; padding: 5px 4px; text-align: center; }
   .layer-row .layer-start-label { font-size: 0.65rem; color: var(--text-muted); white-space: nowrap; }
   .layer-row .layer-gain-val { font-size: 0.65rem; color: var(--text-muted); white-space: nowrap; width: 36px; flex-shrink: 0; }
   .layer-row .layer-autogain { background: var(--card-hover); border: 1px solid var(--border); color: var(--text-main); border-radius: 6px; width: 24px; height: 24px; font-size: 0.75rem; cursor: pointer; flex-shrink: 0; }
@@ -84,18 +84,18 @@
   .timeline-ruler span:last-child { transform: translateX(-100%); }
   .timeline-track { display: flex; align-items: center; gap: 8px; }
   .timeline-track-label { width: 72px; flex-shrink: 0; font-size: 0.66rem; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .timeline-track-lane { position: relative; flex: 1; height: 20px; background: rgba(0,0,0,0.3); border-radius: 6px; overflow: hidden; }
-  .timeline-bar { position: absolute; top: 2px; bottom: 2px; min-width: 18px; border-radius: 4px; background: linear-gradient(135deg, #6366f1, #ec4899); opacity: 0.9; transition: opacity 0.15s ease; }
+  .timeline-track-lane { position: relative; flex: 1; height: 28px; background: rgba(0,0,0,0.3); border-radius: 6px; overflow: visible; }
+  .timeline-bar { position: absolute; top: 2px; bottom: 2px; min-width: 34px; border-radius: 4px; background: linear-gradient(135deg, #6366f1, #ec4899); opacity: 0.9; transition: opacity 0.15s ease; }
   .timeline-bar.main-bar { background: linear-gradient(135deg, #6366f1, #4f46e5); }
   .timeline-bar.muted-bar { opacity: 0.2; filter: grayscale(1); }
   .timeline-bar.solo-bar { outline: 2px solid var(--amber); outline-offset: -1px; }
   .timeline-bar-draggable { cursor: grab; touch-action: none; }
   .timeline-bar-draggable.dragging, .timeline-bar-draggable:active { cursor: grabbing; }
   .timeline-bar-draggable:focus-visible { outline: 2px solid var(--accent-pink); outline-offset: 1px; }
-  .timeline-handle { position: absolute; top: 0; bottom: 0; width: 12px; cursor: ew-resize; touch-action: none; }
-  .timeline-handle-left { left: -3px; }
-  .timeline-handle-right { right: -3px; }
-  .timeline-handle::after { content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); width: 3px; height: 55%; background: rgba(255,255,255,0.65); border-radius: 2px; }
+  .timeline-handle { position: absolute; top: 0; bottom: 0; width: 18px; cursor: ew-resize; touch-action: none; }
+  .timeline-handle-left { left: -6px; }
+  .timeline-handle-right { right: -6px; }
+  .timeline-handle::after { content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); width: 4px; height: 60%; background: rgba(255,255,255,0.7); border-radius: 2px; }
   .timeline-toolbar { display: flex; align-items: center; gap: 8px; }
   .timeline-status { font-size: 0.68rem; color: var(--text-muted); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .btn-mini { background: var(--card-hover); border: 1px solid var(--border); color: var(--text-main); border-radius: 6px; padding: 6px 10px; font-size: 0.7rem; font-weight: 700; cursor: pointer; flex-shrink: 0; }
@@ -985,6 +985,7 @@ function handleTimelinePointerDown(e) {
 }
 function handleTimelinePointerMove(e) {
   if (!timelineDrag || e.pointerId !== timelineDrag.pointerId) return;
+  e.preventDefault();
   const dxPx = e.clientX - timelineDrag.startClientX;
   if (Math.abs(dxPx) > 3) timelineDrag.moved = true;
   const dRendered = (dxPx / timelineDrag.laneWidthPx) * timelineDrag.totalDur;
@@ -1013,9 +1014,9 @@ function handleTimelinePointerUp(e) {
   timelineDrag = null;
   renderLayerList();
 }
-timelineWrap.addEventListener('pointerdown', handleTimelinePointerDown);
-timelineWrap2.addEventListener('pointerdown', handleTimelinePointerDown);
-window.addEventListener('pointermove', handleTimelinePointerMove);
+timelineWrap.addEventListener('pointerdown', handleTimelinePointerDown, { passive: false });
+timelineWrap2.addEventListener('pointerdown', handleTimelinePointerDown, { passive: false });
+window.addEventListener('pointermove', handleTimelinePointerMove, { passive: false });
 window.addEventListener('pointerup', handleTimelinePointerUp);
 window.addEventListener('pointercancel', handleTimelinePointerUp);
 
@@ -1178,9 +1179,9 @@ function renderLayerList() {
       </div>
       <div class="layer-row-trim">
         <span class="layer-start-label">Trim</span>
-        <input type="number" class="layer-start layer-trim-start" min="0" step="0.1" value="${(layer.trimStart || 0).toFixed(2)}" title="Trim start (seconds into this layer's own file)">
+        <input type="number" class="layer-trim-field layer-trim-start" min="0" step="0.1" value="${(layer.trimStart || 0).toFixed(2)}" title="Trim start (seconds into this layer's own file)">
         <span class="layer-start-label">–</span>
-        <input type="number" class="layer-start layer-trim-end" min="0" step="0.1" value="${(layer.trimEnd == null ? layer.buffer.duration : layer.trimEnd).toFixed(2)}" title="Trim end (seconds into this layer's own file)">
+        <input type="number" class="layer-trim-field layer-trim-end" min="0" step="0.1" value="${(layer.trimEnd == null ? layer.buffer.duration : layer.trimEnd).toFixed(2)}" title="Trim end (seconds into this layer's own file)">
         <span class="layer-gain-val" style="width:auto;">/ ${layer.buffer.duration.toFixed(1)}s</span>
         <button class="layer-autogain layer-trim-reset" type="button" title="Reset trim to the full layer file">⟲</button>
       </div>
