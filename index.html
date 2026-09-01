@@ -70,6 +70,24 @@
   .layer-row .layer-remove { background: #ef4444; color: white; border: none; border-radius: 6px; width: 22px; height: 22px; font-size: 0.8rem; cursor: pointer; flex-shrink: 0; }
   .layer-row input[type="checkbox"] { width: 15px; height: 15px; flex-shrink: 0; }
   .layer-empty { font-size: 0.72rem; color: var(--text-muted); padding: 4px 2px; }
+  .layer-row.layer-row-muted { opacity: 0.45; }
+
+  .solo-btn { background: var(--card-hover); border: 1px solid var(--border); color: var(--text-muted); border-radius: 6px; width: 22px; height: 22px; font-size: 0.62rem; font-weight: 800; cursor: pointer; flex-shrink: 0; line-height: 1; padding: 0; }
+  .solo-btn.active { background: var(--amber); border-color: var(--amber); color: #1a1200; }
+
+  .timeline-wrap { display: flex; flex-direction: column; gap: 8px; }
+  .timeline-empty { font-size: 0.72rem; color: var(--text-muted); padding: 4px 2px; }
+  .timeline-ruler { position: relative; height: 14px; font-size: 0.6rem; color: var(--text-muted); }
+  .timeline-ruler span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }
+  .timeline-ruler span:first-child { transform: translateX(0); }
+  .timeline-ruler span:last-child { transform: translateX(-100%); }
+  .timeline-track { display: flex; align-items: center; gap: 8px; }
+  .timeline-track-label { width: 72px; flex-shrink: 0; font-size: 0.66rem; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .timeline-track-lane { position: relative; flex: 1; height: 20px; background: rgba(0,0,0,0.3); border-radius: 6px; overflow: hidden; }
+  .timeline-bar { position: absolute; top: 2px; bottom: 2px; min-width: 3px; border-radius: 4px; background: linear-gradient(135deg, #6366f1, #ec4899); opacity: 0.9; transition: opacity 0.15s ease; }
+  .timeline-bar.main-bar { background: linear-gradient(135deg, #6366f1, #4f46e5); }
+  .timeline-bar.muted-bar { opacity: 0.2; filter: grayscale(1); }
+  .timeline-bar.solo-bar { outline: 2px solid var(--amber); outline-offset: -1px; }
 
   .control-group { background: var(--card-bg); padding: 14px; border-radius: 10px; border: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
   .control-header { display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--text-muted); }
@@ -128,7 +146,7 @@
     </div>
 
     <div class="waveform-card">
-      <div class="waveform-title"><span>Source Audio</span><span id="durationDisplay">0:00</span></div>
+      <div class="waveform-title"><span>Source Audio</span><span style="display:flex;align-items:center;gap:6px;"><span id="durationDisplay">0:00</span><button class="solo-btn" id="mainSoloBtn" type="button" title="Solo the source (mutes all layers)">S</button></span></div>
       <div class="canvas-container"><canvas id="sourceCanvas"></canvas></div>
       <div class="hint" style="margin-top:8px;">Drag the pink handles to set the stretch region.</div>
       <div class="trim-row">
@@ -148,6 +166,16 @@
         <button class="file-btn secondary" id="autoBalanceAllBtn" type="button">Auto-Balance All</button>
       </div>
       <input type="file" id="layerFile" accept=".wav,.mp3,.m4a,.aac,.flac,audio/*">
+    </div>
+
+    <div class="section-label">Timeline <span class="badge">arrangement</span></div>
+    <div class="control-group">
+      <div class="hint">Shows where each layer sits relative to the source, and its estimated rendered length. Tap S to solo a track (mutes everything else); dimmed bars are muted.</div>
+      <div class="timeline-wrap" id="timelineWrap">
+        <div class="timeline-empty" id="timelineEmptyMsg">Load audio to see the arrangement.</div>
+        <div class="timeline-ruler" id="timelineRuler"></div>
+        <div class="timeline-tracks" id="timelineTracks"></div>
+      </div>
     </div>
 
     <div class="waveform-card">
@@ -404,6 +432,7 @@ let layers = []; // { id, name, buffer, gain, muted, stretch, windowSize, window
 let stemPadChannels = null;
 let stemTransientChannels = null;
 let layerIdCounter = 0;
+let mainSolo = false;
 let playbackStartCtxTime = 0;
 let playbackOffset = 0;
 let playheadRAF = null;
@@ -417,6 +446,10 @@ const layerList = $('layerList');
 const layerEmptyMsg = $('layerEmptyMsg');
 const layerCountBadge = $('layerCountBadge');
 const autoBalanceAllBtn = $('autoBalanceAllBtn');
+const mainSoloBtn = $('mainSoloBtn');
+const timelineTracks = $('timelineTracks');
+const timelineRuler = $('timelineRuler');
+const timelineEmptyMsg = $('timelineEmptyMsg');
 const fileNameDisplay = $('fileNameDisplay');
 const durationDisplay = $('durationDisplay');
 const statusDisplay = $('statusDisplay');
@@ -503,7 +536,7 @@ modeAdvancedBtn.onclick = () => setMode(true);
 // ---------------------------------------------------------------------------
 // UI wiring
 // ---------------------------------------------------------------------------
-stretchInput.oninput = e => $('stretchVal').textContent = `${parseFloat(e.target.value).toFixed(1)}x`;
+stretchInput.oninput = e => { $('stretchVal').textContent = `${parseFloat(e.target.value).toFixed(1)}x`; renderTimeline(); };
 phaseInput.oninput = e => $('phaseVal').textContent = `${Math.round(e.target.value * 100)}%`;
 lowpassInput.oninput = e => { $('lpVal').textContent = `${e.target.value} Hz`; updateLiveFilters(); };
 highpassInput.oninput = e => { $('hpVal').textContent = `${e.target.value} Hz`; updateLiveFilters(); };
@@ -529,6 +562,7 @@ trimStartInput.addEventListener('change', () => {
   const dur = sourceBuffer.duration;
   trimStartFrac = Math.max(0, Math.min(trimEndFrac - 0.005, (parseFloat(trimStartInput.value) || 0) / dur));
   renderSourceView();
+  renderTimeline();
 });
 trimEndInput.addEventListener('change', () => {
   if (!sourceBuffer) return;
@@ -536,6 +570,7 @@ trimEndInput.addEventListener('change', () => {
   const v = trimEndInput.value === '' ? dur : parseFloat(trimEndInput.value);
   trimEndFrac = Math.max(trimStartFrac + 0.005, Math.min(1, (isNaN(v) ? dur : v) / dur));
   renderSourceView();
+  renderTimeline();
 });
 
 syncBtn.onclick = () => {
@@ -606,6 +641,7 @@ fileInput.addEventListener('change', (e) => {
       trimStartInput.value = '0';
       trimEndInput.value = buffer.duration.toFixed(2);
       renderSourceView();
+      renderTimeline();
       outCtx.clearRect(0, 0, outputCanvas.width, outputCanvas.height);
       processBtn.disabled = false;
       previewBtn.disabled = false;
@@ -666,7 +702,7 @@ layerFileInput.addEventListener('change', (e) => {
   reader.onload = function (evt) {
     audioCtx.decodeAudioData(evt.target.result, (buffer) => {
       layers.push({
-        id: ++layerIdCounter, name: file.name, buffer, gain: suggestLayerGain(buffer), muted: false,
+        id: ++layerIdCounter, name: file.name, buffer, gain: suggestLayerGain(buffer), muted: false, solo: false,
         stretch: parseFloat(stretchInput.value),
         windowSize: nextPow2(parseInt(windowSizeInput.value, 10)),
         windowType: windowTypeInput.value,
@@ -686,6 +722,98 @@ autoBalanceAllBtn.onclick = () => {
   renderLayerList();
 };
 
+// ---------------------------------------------------------------------------
+// Solo / mute logic
+// ---------------------------------------------------------------------------
+function anySoloActive() {
+  return mainSolo || layers.some(l => l.solo);
+}
+function isMainEffectivelyMuted() {
+  return anySoloActive() && !mainSolo;
+}
+function isLayerEffectivelyMuted(layer) {
+  if (layer.muted) return true;
+  return anySoloActive() && !layer.solo;
+}
+mainSoloBtn.onclick = () => {
+  mainSolo = !mainSolo;
+  mainSoloBtn.classList.toggle('active', mainSolo);
+  renderLayerList();
+  renderTimeline();
+};
+
+// ---------------------------------------------------------------------------
+// Timeline
+// ---------------------------------------------------------------------------
+function formatTimelineTime(s) {
+  s = Math.max(0, s || 0);
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60).toString().padStart(2, '0');
+  return `${m}:${sec}`;
+}
+function estimateMainDuration() {
+  if (!sourceBuffer) return 0;
+  const dur = sourceBuffer.duration;
+  const span = Math.max(0, (trimEndFrac - trimStartFrac) * dur);
+  return span * parseFloat(stretchInput.value || '1');
+}
+function estimateLayerDuration(layer) {
+  if (!sourceBuffer) return 0;
+  const bufDur = layer.buffer.duration;
+  let tStart = Math.max(0, parseFloat(trimStartInput.value) || 0);
+  let tEnd = trimEndInput.value === '' ? bufDur : parseFloat(trimEndInput.value);
+  if (isNaN(tEnd) || tEnd <= tStart) tEnd = bufDur;
+  tEnd = Math.min(tEnd, bufDur);
+  tStart = Math.min(tStart, tEnd);
+  return Math.max(0, (tEnd - tStart) * layer.stretch);
+}
+function renderTimeline() {
+  if (!sourceBuffer) {
+    timelineTracks.innerHTML = '';
+    timelineRuler.innerHTML = '';
+    timelineEmptyMsg.classList.remove('hidden');
+    return;
+  }
+  timelineEmptyMsg.classList.add('hidden');
+
+  const mainDur = estimateMainDuration();
+  const layerInfo = layers.map(layer => ({ layer, dur: estimateLayerDuration(layer), start: layer.startOffset || 0 }));
+  let totalDur = mainDur;
+  for (const info of layerInfo) totalDur = Math.max(totalDur, info.start + info.dur);
+  if (totalDur <= 0) totalDur = 1;
+
+  const tickCount = 5;
+  let rulerHtml = '';
+  for (let i = 0; i <= tickCount; i++) {
+    const pct = (i / tickCount) * 100;
+    rulerHtml += `<span style="left:${pct}%">${formatTimelineTime(totalDur * i / tickCount)}</span>`;
+  }
+  timelineRuler.innerHTML = rulerHtml;
+
+  const mainMutedEff = isMainEffectivelyMuted();
+  const mainWidthPct = Math.max(0, (mainDur / totalDur) * 100);
+  let tracksHtml = `
+    <div class="timeline-track">
+      <div class="timeline-track-label">Source</div>
+      <div class="timeline-track-lane">
+        <div class="timeline-bar main-bar ${mainMutedEff ? 'muted-bar' : ''} ${mainSolo ? 'solo-bar' : ''}" style="left:0%;width:${mainWidthPct}%"></div>
+      </div>
+    </div>`;
+  for (const { layer, dur, start } of layerInfo) {
+    const startPct = Math.max(0, Math.min(100, (start / totalDur) * 100));
+    const widthPct = Math.max(0, (dur / totalDur) * 100);
+    const mutedEff = isLayerEffectivelyMuted(layer);
+    tracksHtml += `
+      <div class="timeline-track">
+        <div class="timeline-track-label" title="${layer.name}">${layer.name}</div>
+        <div class="timeline-track-lane">
+          <div class="timeline-bar ${mutedEff ? 'muted-bar' : ''} ${layer.solo ? 'solo-bar' : ''}" style="left:${startPct}%;width:${widthPct}%"></div>
+        </div>
+      </div>`;
+  }
+  timelineTracks.innerHTML = tracksHtml;
+}
+
 function renderLayerList() {
   layerList.querySelectorAll('.layer-row').forEach(el => el.remove());
   layerEmptyMsg.classList.toggle('hidden', layers.length > 0);
@@ -693,11 +821,12 @@ function renderLayerList() {
   const presetOptions = PRESETS.map((p, i) => `<option value="${i}">${p.name} (${p.stretch}x)</option>`).join('');
   for (const layer of layers) {
     const row = document.createElement('div');
-    row.className = 'layer-row';
+    row.className = `layer-row ${isLayerEffectivelyMuted(layer) ? 'layer-row-muted' : ''}`;
     row.innerHTML = `
       <div class="layer-row-top">
         <input type="checkbox" class="layer-mute" ${layer.muted ? '' : 'checked'} title="Active">
         <span class="layer-name">${layer.name}</span>
+        <button class="solo-btn layer-solo ${layer.solo ? 'active' : ''}" type="button" title="Solo this layer (mutes source and other layers)">S</button>
         <button class="layer-remove">×</button>
       </div>
       <div class="layer-row-mid">
@@ -716,7 +845,16 @@ function renderLayerList() {
       </div>
     `;
     if (layer.presetIndex >= 0) row.querySelector('.layer-preset').value = String(layer.presetIndex);
-    row.querySelector('.layer-mute').addEventListener('change', (e) => { layer.muted = !e.target.checked; });
+    row.querySelector('.layer-mute').addEventListener('change', (e) => {
+      layer.muted = !e.target.checked;
+      renderLayerList();
+      renderTimeline();
+    });
+    row.querySelector('.layer-solo').addEventListener('click', () => {
+      layer.solo = !layer.solo;
+      renderLayerList();
+      renderTimeline();
+    });
     row.querySelector('.layer-gain').addEventListener('input', (e) => {
       layer.gain = parseFloat(e.target.value);
       row.querySelector('.layer-gain-val').textContent = `${layer.gain.toFixed(2)}x`;
@@ -728,6 +866,7 @@ function renderLayerList() {
     });
     row.querySelector('.layer-start').addEventListener('change', (e) => {
       layer.startOffset = Math.max(0, parseFloat(e.target.value) || 0);
+      renderTimeline();
     });
     row.querySelector('.layer-remove').addEventListener('click', () => {
       layers = layers.filter(l => l.id !== layer.id);
@@ -737,6 +876,7 @@ function renderLayerList() {
       layer.stretch = Math.max(1, Math.min(100, parseFloat(e.target.value) || 1));
       layer.presetIndex = -1;
       row.querySelector('.layer-preset').value = '-1';
+      renderTimeline();
     });
     row.querySelector('.layer-preset').addEventListener('change', (e) => {
       const idx = parseInt(e.target.value, 10);
@@ -749,9 +889,11 @@ function renderLayerList() {
         layer.phaseAmount = p.phase;
         row.querySelector('.layer-stretch').value = p.stretch;
       }
+      renderTimeline();
     });
     layerList.appendChild(row);
   }
+  renderTimeline();
 }
 
 // ---------------------------------------------------------------------------
@@ -1325,7 +1467,7 @@ processBtn.onclick = async () => {
   const { channels: inputChannels, sr } = getTrimmedChannels(sourceBuffer);
   const numChannels = inputChannels.length;
   const channelsToProcess = stereoWiden ? numChannels : 1;
-  const totalSteps = channelsToProcess + layers.filter(l => !l.muted).length;
+  const totalSteps = channelsToProcess + layers.filter(l => !isLayerEffectivelyMuted(l)).length;
   let stepIndex = 0;
 
   const outChannels = [];
@@ -1371,6 +1513,7 @@ processBtn.onclick = async () => {
       padStemChannels.push(padVersion.slice());
       transientStemChannels.push(new Float32Array(padVersion.length));
     }
+    if (isMainEffectivelyMuted()) bodyResult = new Float32Array(bodyResult.length);
     outChannels.push(bodyResult);
     stepIndex++;
   }
@@ -1383,7 +1526,7 @@ processBtn.onclick = async () => {
 
   // Mix in extra layers — each layer uses its own stretch/window/phase (preset override), falling back to global for EQ/formant/morph
   for (const layer of layers) {
-    if (layer.muted) continue;
+    if (isLayerEffectivelyMuted(layer)) continue;
     const { channels: layerChannels, sr: layerSr } = getTrimmedChannels(layer.buffer);
     const layerOpts = {
       stretch: layer.stretch,
