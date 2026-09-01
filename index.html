@@ -59,6 +59,7 @@
   .layer-row-top { display: flex; align-items: center; gap: 8px; }
   .layer-row-mid { display: flex; align-items: center; gap: 6px; }
   .layer-row-bottom { display: flex; align-items: center; gap: 6px; }
+  .layer-row-trim { display: flex; align-items: center; gap: 6px; }
   .layer-row .layer-name { font-size: 0.78rem; font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .layer-row .layer-preset { flex: 1.4; font-size: 0.72rem; padding: 5px 6px; }
   .layer-row .layer-stretch { width: 52px; font-size: 0.72rem; padding: 5px 4px; text-align: center; }
@@ -84,10 +85,19 @@
   .timeline-track { display: flex; align-items: center; gap: 8px; }
   .timeline-track-label { width: 72px; flex-shrink: 0; font-size: 0.66rem; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .timeline-track-lane { position: relative; flex: 1; height: 20px; background: rgba(0,0,0,0.3); border-radius: 6px; overflow: hidden; }
-  .timeline-bar { position: absolute; top: 2px; bottom: 2px; min-width: 3px; border-radius: 4px; background: linear-gradient(135deg, #6366f1, #ec4899); opacity: 0.9; transition: opacity 0.15s ease; }
-  .timeline-bar.main-bar { background: linear-gradient(135deg, #6366f1, #4f46e5); }
+  .timeline-bar { position: absolute; top: 2px; bottom: 2px; min-width: 8px; border-radius: 4px; background: linear-gradient(135deg, #6366f1, #ec4899); opacity: 0.9; transition: opacity 0.15s ease, box-shadow 0.15s ease; cursor: grab; touch-action: none; }
+  .timeline-bar.main-bar { background: linear-gradient(135deg, #6366f1, #4f46e5); cursor: default; }
   .timeline-bar.muted-bar { opacity: 0.2; filter: grayscale(1); }
   .timeline-bar.solo-bar { outline: 2px solid var(--amber); outline-offset: -1px; }
+  .timeline-bar.selected { box-shadow: 0 0 0 2px rgba(236,72,153,0.45); }
+  .timeline-bar.dragging { cursor: grabbing; box-shadow: 0 0 0 2px rgba(236,72,153,0.7); }
+  .timeline-handle { position: absolute; top: -2px; bottom: -2px; width: 10px; z-index: 2; cursor: ew-resize; }
+  .timeline-handle::after { content: ''; position: absolute; top: 3px; bottom: 3px; width: 3px; border-radius: 2px; background: #ec4899; box-shadow: 0 0 0 1px rgba(0,0,0,0.25); }
+  .timeline-handle.left { left: -3px; }
+  .timeline-handle.right { right: -3px; }
+  .timeline-handle.left::after { left: 3px; }
+  .timeline-handle.right::after { right: 3px; }
+  .timeline-help { font-size: 0.62rem; color: var(--text-muted); margin-top: 2px; }
 
   .control-group { background: var(--card-bg); padding: 14px; border-radius: 10px; border: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
   .control-header { display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--text-muted); }
@@ -157,7 +167,7 @@
 
     <div class="section-label">Layers <span class="badge" id="layerCountBadge">1 source</span></div>
     <div class="control-group">
-      <div class="hint">Blend extra files underneath the main source — each layer gets its own preset/stretch, start time, and gain, then mixes into the final render. New layers auto-gain to roughly match the main source's loudness.</div>
+      <div class="hint">Blend extra files underneath the main source — each layer gets its own preset/stretch, trim range, start time, and gain, then mixes into the final render. New layers default to the main trim region (clamped to their own length) and auto-gain to roughly match the main source's loudness.</div>
       <div class="layer-list" id="layerList">
         <div class="layer-empty" id="layerEmptyMsg">No extra layers added.</div>
       </div>
@@ -170,7 +180,7 @@
 
     <div class="section-label">Timeline <span class="badge">arrangement</span></div>
     <div class="control-group">
-      <div class="hint">Shows where each layer sits relative to the source, and its estimated rendered length. Tap S to solo a track (mutes everything else); dimmed bars are muted.</div>
+      <div class="hint">Drag a layer bar to move it. Drag either edge to trim the original sample; the numeric Trim fields below remain available for precise editing. Tap S to solo a track (mutes everything else); dimmed bars are muted.</div>
       <div class="timeline-wrap" id="timelineWrap">
         <div class="timeline-empty" id="timelineEmptyMsg">Load audio to see the arrangement.</div>
         <div class="timeline-ruler" id="timelineRuler"></div>
@@ -685,13 +695,21 @@ function computeRMS(arr) {
   for (let i = 0; i < arr.length; i += step) { sum += arr[i] * arr[i]; count++; }
   return Math.sqrt(sum / Math.max(1, count));
 }
-function suggestLayerGain(layerBuffer) {
+function suggestLayerGain(buffer, tStart, tEnd) {
   if (!sourceBuffer) return 0.7;
   const sourceRMS = computeRMS(getTrimmedChannels(sourceBuffer).channels[0]);
-  const layerRMS = computeRMS(getTrimmedChannels(layerBuffer).channels[0]);
+  const layerRMS = computeRMS(trimChannels(buffer, tStart, tEnd).channels[0]);
   if (sourceRMS <= 0 || layerRMS <= 0) return 0.7;
   const ratio = sourceRMS / layerRMS;
   return Math.round(Math.max(0.05, Math.min(1.5, ratio)) * 100) / 100;
+}
+function defaultLayerTrim(buffer) {
+  let tStart = Math.max(0, parseFloat(trimStartInput.value) || 0);
+  let tEnd = trimEndInput.value === '' ? buffer.duration : parseFloat(trimEndInput.value);
+  if (isNaN(tEnd) || tEnd <= tStart) tEnd = buffer.duration;
+  tEnd = Math.min(tEnd, buffer.duration);
+  tStart = Math.min(tStart, tEnd);
+  return { trimStart: tStart, trimEnd: tEnd };
 }
 
 layerFileInput.addEventListener('change', (e) => {
@@ -701,14 +719,16 @@ layerFileInput.addEventListener('change', (e) => {
   const reader = new FileReader();
   reader.onload = function (evt) {
     audioCtx.decodeAudioData(evt.target.result, (buffer) => {
+      const { trimStart, trimEnd } = defaultLayerTrim(buffer);
       layers.push({
-        id: ++layerIdCounter, name: file.name, buffer, gain: suggestLayerGain(buffer), muted: false, solo: false,
+        id: ++layerIdCounter, name: file.name, buffer, gain: suggestLayerGain(buffer, trimStart, trimEnd), muted: false, solo: false,
         stretch: parseFloat(stretchInput.value),
         windowSize: nextPow2(parseInt(windowSizeInput.value, 10)),
         windowType: windowTypeInput.value,
         phaseAmount: parseFloat(phaseInput.value),
         presetIndex: -1,
-        startOffset: 0
+        startOffset: 0,
+        trimStart, trimEnd
       });
       renderLayerList();
     }, (err) => console.error('Layer decode error:', err));
@@ -718,7 +738,7 @@ layerFileInput.addEventListener('change', (e) => {
 });
 
 autoBalanceAllBtn.onclick = () => {
-  for (const layer of layers) layer.gain = suggestLayerGain(layer.buffer);
+  for (const layer of layers) layer.gain = suggestLayerGain(layer.buffer, layer.trimStart, layer.trimEnd);
   renderLayerList();
 };
 
@@ -760,9 +780,9 @@ function estimateMainDuration() {
 function estimateLayerDuration(layer) {
   if (!sourceBuffer) return 0;
   const bufDur = layer.buffer.duration;
-  let tStart = Math.max(0, parseFloat(trimStartInput.value) || 0);
-  let tEnd = trimEndInput.value === '' ? bufDur : parseFloat(trimEndInput.value);
-  if (isNaN(tEnd) || tEnd <= tStart) tEnd = bufDur;
+  let tStart = Math.max(0, layer.trimStart || 0);
+  let tEnd = (layer.trimEnd == null || isNaN(layer.trimEnd)) ? bufDur : layer.trimEnd;
+  if (tEnd <= tStart) tEnd = bufDur;
   tEnd = Math.min(tEnd, bufDur);
   tStart = Math.min(tStart, tEnd);
   return Math.max(0, (tEnd - tStart) * layer.stretch);
@@ -801,19 +821,102 @@ function renderTimeline() {
     </div>`;
   for (const { layer, dur, start } of layerInfo) {
     const startPct = Math.max(0, Math.min(100, (start / totalDur) * 100));
-    const widthPct = Math.max(0, (dur / totalDur) * 100);
+    const widthPct = Math.max(0.2, Math.min(100 - startPct, (dur / totalDur) * 100));
     const mutedEff = isLayerEffectivelyMuted(layer);
     tracksHtml += `
       <div class="timeline-track">
         <div class="timeline-track-label" title="${layer.name}">${layer.name}</div>
-        <div class="timeline-track-lane">
-          <div class="timeline-bar ${mutedEff ? 'muted-bar' : ''} ${layer.solo ? 'solo-bar' : ''}" style="left:${startPct}%;width:${widthPct}%"></div>
+        <div class="timeline-track-lane" data-layer-id="${layer.id}">
+          <div class="timeline-bar ${mutedEff ? 'muted-bar' : ''} ${layer.solo ? 'solo-bar' : ''}" data-layer-id="${layer.id}" tabindex="0" role="slider" aria-label="${layer.name} timeline clip" aria-valuemin="0" aria-valuemax="${Math.max(0.01, totalDur).toFixed(2)}" aria-valuenow="${start.toFixed(2)}" style="left:${startPct}%;width:${widthPct}%">
+            <span class="timeline-handle left" data-action="trim-start" aria-label="Trim layer start"></span>
+            <span class="timeline-handle right" data-action="trim-end" aria-label="Trim layer end"></span>
+          </div>
         </div>
       </div>`;
   }
   timelineTracks.innerHTML = tracksHtml;
+  wireInteractiveTimeline(totalDur);
 }
 
+function wireInteractiveTimeline(totalDur) {
+  timelineTracks.querySelectorAll('.timeline-bar:not(.main-bar)').forEach(bar => {
+    const layerId = Number(bar.dataset.layerId);
+    const layer = layers.find(l => l.id === layerId);
+    if (!layer) return;
+    const lane = bar.parentElement;
+    let drag = null;
+
+    const beginDrag = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const rect = lane.getBoundingClientRect();
+      const x = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+      const currentStart = layer.startOffset || 0;
+      const currentDur = estimateLayerDuration(layer);
+      const action = e.target.closest('.timeline-handle')?.dataset.action || 'move';
+      drag = {
+        action,
+        startX: x,
+        originalStart: currentStart,
+        originalTrimStart: layer.trimStart || 0,
+        originalTrimEnd: layer.trimEnd == null ? layer.buffer.duration : layer.trimEnd,
+        originalDur: currentDur,
+        totalDur,
+        laneWidth: Math.max(1, rect.width)
+      };
+      bar.classList.add('dragging');
+      try { bar.setPointerCapture(e.pointerId); } catch (err) {}
+    };
+
+    const moveDrag = (e) => {
+      if (!drag) return;
+      e.preventDefault();
+      const dxPx = e.clientX - (lane.getBoundingClientRect().left + drag.startX);
+      const deltaTimeline = (dxPx / drag.laneWidth) * drag.totalDur;
+      const minClip = 0.05;
+      const stretch = Math.max(0.0001, layer.stretch || 1);
+      const sourceDelta = deltaTimeline / stretch;
+      const bufferDur = layer.buffer.duration;
+
+      if (drag.action === 'move') {
+        layer.startOffset = Math.max(0, drag.originalStart + deltaTimeline);
+      } else if (drag.action === 'trim-start') {
+        const newStart = Math.max(0, Math.min(drag.originalTrimEnd - minClip, drag.originalTrimStart + sourceDelta));
+        layer.trimStart = Math.min(bufferDur, newStart);
+      } else if (drag.action === 'trim-end') {
+        const newEnd = Math.max(drag.originalTrimStart + minClip, Math.min(bufferDur, drag.originalTrimEnd + sourceDelta));
+        layer.trimEnd = Math.max(drag.originalTrimStart + minClip, newEnd);
+      }
+
+      // Update the current bar in place while dragging so pointer capture is not lost.
+      const currentDur = estimateLayerDuration(layer);
+      const leftPct = Math.max(0, (layer.startOffset || 0) / totalDur * 100);
+      const widthPct = Math.max(0.2, Math.min(100, currentDur / totalDur * 100));
+      bar.style.left = `${leftPct}%`;
+      bar.style.width = `${widthPct}%`;
+    };
+
+    const endDrag = (e) => {
+      if (!drag) return;
+      drag = null;
+      bar.classList.remove('dragging');
+      try { bar.releasePointerCapture(e.pointerId); } catch (err) {}
+      renderLayerList();
+      renderTimeline();
+    };
+
+    bar.addEventListener('pointerdown', beginDrag);
+    bar.addEventListener('pointermove', moveDrag);
+    bar.addEventListener('pointerup', endDrag);
+    bar.addEventListener('pointercancel', endDrag);
+    bar.addEventListener('keydown', (e) => {
+      if (!layer) return;
+      const step = e.shiftKey ? 1 : 0.1;
+      if (e.key === 'ArrowLeft') { layer.startOffset = Math.max(0, (layer.startOffset || 0) - step); renderLayerList(); renderTimeline(); e.preventDefault(); }
+      if (e.key === 'ArrowRight') { layer.startOffset = (layer.startOffset || 0) + step; renderLayerList(); renderTimeline(); e.preventDefault(); }
+    });
+  });
+}
 function renderLayerList() {
   layerList.querySelectorAll('.layer-row').forEach(el => el.remove());
   layerEmptyMsg.classList.toggle('hidden', layers.length > 0);
@@ -835,6 +938,14 @@ function renderLayerList() {
           ${presetOptions}
         </select>
         <input type="number" class="layer-stretch" min="1" max="100" step="0.5" value="${layer.stretch}" title="Stretch factor">
+      </div>
+      <div class="layer-row-trim">
+        <span class="layer-start-label">Trim</span>
+        <input type="number" class="layer-start layer-trim-start" min="0" step="0.1" value="${(layer.trimStart || 0).toFixed(2)}" title="Trim start (seconds into this layer's own file)">
+        <span class="layer-start-label">–</span>
+        <input type="number" class="layer-start layer-trim-end" min="0" step="0.1" value="${(layer.trimEnd == null ? layer.buffer.duration : layer.trimEnd).toFixed(2)}" title="Trim end (seconds into this layer's own file)">
+        <span class="layer-gain-val" style="width:auto;">/ ${layer.buffer.duration.toFixed(1)}s</span>
+        <button class="layer-autogain layer-trim-reset" type="button" title="Reset trim to the full layer file">⟲</button>
       </div>
       <div class="layer-row-bottom">
         <span class="layer-start-label">Start</span>
@@ -859,10 +970,32 @@ function renderLayerList() {
       layer.gain = parseFloat(e.target.value);
       row.querySelector('.layer-gain-val').textContent = `${layer.gain.toFixed(2)}x`;
     });
-    row.querySelector('.layer-autogain').addEventListener('click', () => {
-      layer.gain = suggestLayerGain(layer.buffer);
+    row.querySelector('.layer-autogain:not(.layer-trim-reset)').addEventListener('click', () => {
+      layer.gain = suggestLayerGain(layer.buffer, layer.trimStart, layer.trimEnd);
       row.querySelector('.layer-gain').value = layer.gain;
       row.querySelector('.layer-gain-val').textContent = `${layer.gain.toFixed(2)}x`;
+    });
+    row.querySelector('.layer-trim-start').addEventListener('change', (e) => {
+      const bufDur = layer.buffer.duration;
+      let v = Math.max(0, parseFloat(e.target.value) || 0);
+      const curEnd = (layer.trimEnd == null ? bufDur : layer.trimEnd);
+      layer.trimStart = Math.min(v, Math.max(0, curEnd - 0.05));
+      e.target.value = layer.trimStart.toFixed(2);
+      renderTimeline();
+    });
+    row.querySelector('.layer-trim-end').addEventListener('change', (e) => {
+      const bufDur = layer.buffer.duration;
+      let v = e.target.value === '' ? bufDur : parseFloat(e.target.value);
+      if (isNaN(v)) v = bufDur;
+      v = Math.min(v, bufDur);
+      layer.trimEnd = Math.max(v, (layer.trimStart || 0) + 0.05);
+      e.target.value = layer.trimEnd.toFixed(2);
+      renderTimeline();
+    });
+    row.querySelector('.layer-trim-reset').addEventListener('click', () => {
+      layer.trimStart = 0;
+      layer.trimEnd = layer.buffer.duration;
+      renderLayerList();
     });
     row.querySelector('.layer-start').addEventListener('change', (e) => {
       layer.startOffset = Math.max(0, parseFloat(e.target.value) || 0);
@@ -1416,11 +1549,11 @@ function placeTransients(snippets, stretchFactor, outLength, gain) {
 // ---------------------------------------------------------------------------
 function nextPow2(n) { return Math.pow(2, Math.round(Math.log2(n))); }
 
-function getTrimmedChannels(buffer) {
+function trimChannels(buffer, tStart, tEnd) {
   const sr = buffer.sampleRate;
-  let tStart = Math.max(0, parseFloat(trimStartInput.value) || 0);
-  let tEnd = trimEndInput.value === '' ? buffer.duration : parseFloat(trimEndInput.value);
-  if (isNaN(tEnd) || tEnd <= tStart) tEnd = buffer.duration;
+  tStart = Math.max(0, tStart || 0);
+  tEnd = (tEnd === null || tEnd === undefined || isNaN(tEnd)) ? buffer.duration : tEnd;
+  if (tEnd <= tStart) tEnd = buffer.duration;
   tEnd = Math.min(tEnd, buffer.duration);
   tStart = Math.min(tStart, tEnd);
   const startSample = Math.floor(tStart * sr);
@@ -1428,6 +1561,14 @@ function getTrimmedChannels(buffer) {
   const channels = [];
   for (let c = 0; c < buffer.numberOfChannels; c++) channels.push(buffer.getChannelData(c).subarray(startSample, endSample));
   return { channels, sr };
+}
+function getTrimmedChannels(buffer) {
+  const tStart = Math.max(0, parseFloat(trimStartInput.value) || 0);
+  const tEnd = trimEndInput.value === '' ? buffer.duration : parseFloat(trimEndInput.value);
+  return trimChannels(buffer, tStart, tEnd);
+}
+function getLayerTrimmedChannels(layer) {
+  return trimChannels(layer.buffer, layer.trimStart, layer.trimEnd);
 }
 
 function currentEqParams() {
@@ -1527,7 +1668,7 @@ processBtn.onclick = async () => {
   // Mix in extra layers — each layer uses its own stretch/window/phase (preset override), falling back to global for EQ/formant/morph
   for (const layer of layers) {
     if (isLayerEffectivelyMuted(layer)) continue;
-    const { channels: layerChannels, sr: layerSr } = getTrimmedChannels(layer.buffer);
+    const { channels: layerChannels, sr: layerSr } = getLayerTrimmedChannels(layer);
     const layerOpts = {
       stretch: layer.stretch,
       windowSize: nextPow2(layer.windowSize),
