@@ -85,10 +85,17 @@
   .timeline-track { display: flex; align-items: center; gap: 8px; }
   .timeline-track-label { width: 72px; flex-shrink: 0; font-size: 0.66rem; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .timeline-track-lane { position: relative; flex: 1; height: 20px; background: rgba(0,0,0,0.3); border-radius: 6px; overflow: hidden; }
-  .timeline-bar { position: absolute; top: 2px; bottom: 2px; min-width: 3px; border-radius: 4px; background: linear-gradient(135deg, #6366f1, #ec4899); opacity: 0.9; transition: opacity 0.15s ease; }
+  .timeline-bar { position: absolute; top: 2px; bottom: 2px; min-width: 18px; border-radius: 4px; background: linear-gradient(135deg, #6366f1, #ec4899); opacity: 0.9; transition: opacity 0.15s ease; }
   .timeline-bar.main-bar { background: linear-gradient(135deg, #6366f1, #4f46e5); }
   .timeline-bar.muted-bar { opacity: 0.2; filter: grayscale(1); }
   .timeline-bar.solo-bar { outline: 2px solid var(--amber); outline-offset: -1px; }
+  .timeline-bar-draggable { cursor: grab; touch-action: none; }
+  .timeline-bar-draggable.dragging, .timeline-bar-draggable:active { cursor: grabbing; }
+  .timeline-bar-draggable:focus-visible { outline: 2px solid var(--accent-pink); outline-offset: 1px; }
+  .timeline-handle { position: absolute; top: 0; bottom: 0; width: 12px; cursor: ew-resize; touch-action: none; }
+  .timeline-handle-left { left: -3px; }
+  .timeline-handle-right { right: -3px; }
+  .timeline-handle::after { content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); width: 3px; height: 55%; background: rgba(255,255,255,0.65); border-radius: 2px; }
   .timeline-toolbar { display: flex; align-items: center; gap: 8px; }
   .timeline-status { font-size: 0.68rem; color: var(--text-muted); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .btn-mini { background: var(--card-hover); border: 1px solid var(--border); color: var(--text-main); border-radius: 6px; padding: 6px 10px; font-size: 0.7rem; font-weight: 700; cursor: pointer; flex-shrink: 0; }
@@ -888,6 +895,7 @@ function selectTimelineTrack(key) {
   }
 }
 function handleTimelineClick(e) {
+  if (suppressNextTimelineClick) { suppressNextTimelineClick = false; return; }
   const previewBtnEl = e.target.closest('.timeline-preview-btn');
   if (previewBtnEl) {
     e.stopPropagation();
@@ -899,6 +907,136 @@ function handleTimelineClick(e) {
 }
 timelineWrap.addEventListener('click', handleTimelineClick);
 timelineWrap2.addEventListener('click', handleTimelineClick);
+
+// ---------------------------------------------------------------------------
+// Timeline: drag to move / trim, keyboard nudge
+// ---------------------------------------------------------------------------
+let suppressNextTimelineClick = false;
+let timelineDrag = null;
+
+function computeTimelineLayout() {
+  const mainDur = estimateMainDuration();
+  const layerInfo = layers.map(layer => ({ layer, dur: estimateLayerDuration(layer), start: layer.startOffset || 0 }));
+  let totalDur = mainDur;
+  for (const info of layerInfo) totalDur = Math.max(totalDur, info.start + info.dur);
+  if (totalDur <= 0) totalDur = 1;
+  return { mainDur, totalDur, layerInfo };
+}
+
+function updateTimelineGeometry() {
+  const { mainDur, totalDur, layerInfo } = computeTimelineLayout();
+  const mainWidthPct = Math.max(0, (mainDur / totalDur) * 100);
+  for (const wrap of [timelineWrap, timelineWrap2]) {
+    const mainBar = wrap.querySelector('.timeline-bar[data-key="main"]');
+    if (mainBar) mainBar.style.width = mainWidthPct + '%';
+    const rulerSpans = wrap.querySelectorAll('.timeline-ruler span');
+    const n = Math.max(1, rulerSpans.length - 1);
+    rulerSpans.forEach((span, i) => { span.textContent = formatTimelineTime(totalDur * i / n); });
+  }
+  for (const { layer, dur, start } of layerInfo) {
+    const key = String(layer.id);
+    const startPct = Math.max(0, Math.min(100, (start / totalDur) * 100));
+    const widthPct = Math.max(0, (dur / totalDur) * 100);
+    for (const wrap of [timelineWrap, timelineWrap2]) {
+      const bar = wrap.querySelector(`.timeline-bar[data-key="${key}"]`);
+      if (bar) { bar.style.left = startPct + '%'; bar.style.width = widthPct + '%'; }
+    }
+  }
+}
+
+function syncLayerStartInput(layer) {
+  const row = layerList.querySelector(`.layer-row[data-layer-id="${layer.id}"]`);
+  if (!row) return;
+  const startInput = row.querySelector('.layer-row-bottom .layer-start');
+  if (startInput) startInput.value = (layer.startOffset || 0).toFixed(2);
+  const trimStartInputEl = row.querySelector('.layer-trim-start');
+  if (trimStartInputEl) trimStartInputEl.value = (layer.trimStart || 0).toFixed(2);
+  const trimEndInputEl = row.querySelector('.layer-trim-end');
+  if (trimEndInputEl) trimEndInputEl.value = (layer.trimEnd == null ? layer.buffer.duration : layer.trimEnd).toFixed(2);
+}
+
+function handleTimelinePointerDown(e) {
+  const bar = e.target.closest('.timeline-bar');
+  if (!bar || bar.dataset.key === 'main') return;
+  const key = bar.dataset.key;
+  const layer = layers.find(l => String(l.id) === key);
+  if (!layer) return;
+  const lane = bar.closest('.timeline-track-lane');
+  if (!lane) return;
+  const laneRect = lane.getBoundingClientRect();
+  const { totalDur } = computeTimelineLayout();
+  const handle = e.target.closest('.timeline-handle');
+  timelineDrag = {
+    type: handle ? (handle.classList.contains('timeline-handle-left') ? 'trim-left' : 'trim-right') : 'move',
+    layer,
+    startClientX: e.clientX,
+    laneWidthPx: Math.max(1, laneRect.width),
+    totalDur,
+    origStart: layer.startOffset || 0,
+    origTrimStart: layer.trimStart || 0,
+    origTrimEnd: (layer.trimEnd == null) ? layer.buffer.duration : layer.trimEnd,
+    moved: false,
+    pointerId: e.pointerId,
+    targetEl: bar
+  };
+  try { bar.setPointerCapture(e.pointerId); } catch (err) {}
+  bar.classList.add('dragging');
+  e.preventDefault();
+}
+function handleTimelinePointerMove(e) {
+  if (!timelineDrag || e.pointerId !== timelineDrag.pointerId) return;
+  const dxPx = e.clientX - timelineDrag.startClientX;
+  if (Math.abs(dxPx) > 3) timelineDrag.moved = true;
+  const dRendered = (dxPx / timelineDrag.laneWidthPx) * timelineDrag.totalDur;
+  const layer = timelineDrag.layer;
+  const bufDur = layer.buffer.duration;
+  if (timelineDrag.type === 'move') {
+    layer.startOffset = Math.max(0, timelineDrag.origStart + dRendered);
+  } else if (timelineDrag.type === 'trim-left') {
+    const dOriginal = dRendered / layer.stretch;
+    let newTrimStart = Math.max(0, Math.min(timelineDrag.origTrimStart + dOriginal, timelineDrag.origTrimEnd - 0.05));
+    const actualDOriginal = newTrimStart - timelineDrag.origTrimStart;
+    layer.trimStart = newTrimStart;
+    layer.startOffset = Math.max(0, timelineDrag.origStart + actualDOriginal * layer.stretch);
+  } else if (timelineDrag.type === 'trim-right') {
+    const dOriginal = dRendered / layer.stretch;
+    layer.trimEnd = Math.max(timelineDrag.origTrimStart + 0.05, Math.min(timelineDrag.origTrimEnd + dOriginal, bufDur));
+  }
+  updateTimelineGeometry();
+}
+function handleTimelinePointerUp(e) {
+  if (!timelineDrag || e.pointerId !== timelineDrag.pointerId) return;
+  const { targetEl, moved } = timelineDrag;
+  try { targetEl.releasePointerCapture(e.pointerId); } catch (err) {}
+  targetEl.classList.remove('dragging');
+  if (moved) suppressNextTimelineClick = true;
+  timelineDrag = null;
+  renderLayerList();
+}
+timelineWrap.addEventListener('pointerdown', handleTimelinePointerDown);
+timelineWrap2.addEventListener('pointerdown', handleTimelinePointerDown);
+window.addEventListener('pointermove', handleTimelinePointerMove);
+window.addEventListener('pointerup', handleTimelinePointerUp);
+window.addEventListener('pointercancel', handleTimelinePointerUp);
+
+function handleTimelineKeydown(e) {
+  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+  const bar = e.target.closest('.timeline-bar');
+  if (!bar || bar.dataset.key === 'main') return;
+  const key = bar.dataset.key;
+  const layer = layers.find(l => String(l.id) === key);
+  if (!layer) return;
+  e.preventDefault();
+  const step = e.shiftKey ? 1 : 0.1;
+  layer.startOffset = Math.max(0, (layer.startOffset || 0) + (e.key === 'ArrowLeft' ? -step : step));
+  updateTimelineGeometry();
+  syncLayerStartInput(layer);
+  const wrap = e.currentTarget;
+  const refreshedBar = wrap.querySelector(`.timeline-bar[data-key="${key}"]`);
+  if (refreshedBar) refreshedBar.focus();
+}
+timelineWrap.addEventListener('keydown', handleTimelineKeydown);
+timelineWrap2.addEventListener('keydown', handleTimelineKeydown);
 
 timelineCopyBtn.onclick = () => {
   if (!selectedTimelineKey) return;
@@ -967,11 +1105,7 @@ function renderTimeline() {
   }
   for (const inst of instances) inst.empty.classList.add('hidden');
 
-  const mainDur = estimateMainDuration();
-  const layerInfo = layers.map(layer => ({ layer, dur: estimateLayerDuration(layer), start: layer.startOffset || 0 }));
-  let totalDur = mainDur;
-  for (const info of layerInfo) totalDur = Math.max(totalDur, info.start + info.dur);
-  if (totalDur <= 0) totalDur = 1;
+  const { mainDur, totalDur, layerInfo } = computeTimelineLayout();
 
   const tickCount = 5;
   let rulerHtml = '';
@@ -989,7 +1123,7 @@ function renderTimeline() {
       <button class="timeline-preview-btn ${previewingKey === 'main' ? 'playing' : ''}" data-key="main" type="button" title="Preview the source">${mainPreviewIcon}</button>
       <div class="timeline-track-label">Source</div>
       <div class="timeline-track-lane">
-        <div class="timeline-bar main-bar ${mainMutedEff ? 'muted-bar' : ''} ${mainSolo ? 'solo-bar' : ''}" style="left:0%;width:${mainWidthPct}%"></div>
+        <div class="timeline-bar main-bar ${mainMutedEff ? 'muted-bar' : ''} ${mainSolo ? 'solo-bar' : ''}" data-key="main" style="left:0%;width:${mainWidthPct}%"></div>
       </div>
     </div>`;
   for (const { layer, dur, start } of layerInfo) {
@@ -1004,7 +1138,10 @@ function renderTimeline() {
         <button class="timeline-preview-btn ${previewingKey === key ? 'playing' : ''}" data-key="${key}" type="button" title="Preview this layer">${previewIcon}</button>
         <div class="timeline-track-label" title="${layer.name}">${layer.name}</div>
         <div class="timeline-track-lane">
-          <div class="timeline-bar ${mutedEff ? 'muted-bar' : ''} ${layer.solo ? 'solo-bar' : ''}" style="left:${startPct}%;width:${widthPct}%"></div>
+          <div class="timeline-bar timeline-bar-draggable ${mutedEff ? 'muted-bar' : ''} ${layer.solo ? 'solo-bar' : ''}" data-key="${key}" tabindex="0" title="Drag to move • drag edges to trim • ←/→ to nudge (Shift = 1s)" style="left:${startPct}%;width:${widthPct}%">
+            <div class="timeline-handle timeline-handle-left"></div>
+            <div class="timeline-handle timeline-handle-right"></div>
+          </div>
         </div>
       </div>`;
   }
