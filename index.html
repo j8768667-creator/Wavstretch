@@ -1234,7 +1234,7 @@ function renderLayerList() {
       layer.trimEnd = layer.buffer.duration;
       renderLayerList();
     });
-    row.querySelector('.layer-start').addEventListener('change', (e) => {
+    row.querySelector('.layer-row-bottom .layer-start').addEventListener('change', (e) => {
       layer.startOffset = Math.max(0, parseFloat(e.target.value) || 0);
       renderTimeline();
     });
@@ -1832,27 +1832,6 @@ function getTrimmedChannels(buffer) {
 function getLayerTrimmedChannels(layer) {
   return trimChannels(layer.buffer, layer.trimStart, layer.trimEnd);
 }
-// Linear-interpolation resampler. Layer files can be recorded at a different
-// native sample rate than the main source; everything downstream (stretch
-// job output length, offsetSamples placement, timeline duration estimates)
-// assumes a single shared sample rate. Without this, a layer whose file rate
-// differs from the master rate gets embedded into the mix sample-for-sample
-// at the wrong speed, so its audio drifts out of sync with where the
-// timeline/playhead says it should be.
-function resampleChannel(data, fromSr, toSr) {
-  if (fromSr === toSr || !data.length) return data;
-  const ratio = toSr / fromSr;
-  const outLen = Math.max(1, Math.round(data.length * ratio));
-  const out = new Float32Array(outLen);
-  for (let i = 0; i < outLen; i++) {
-    const srcPos = i / ratio;
-    const i0 = Math.floor(srcPos);
-    const i1 = Math.min(data.length - 1, i0 + 1);
-    const frac = srcPos - i0;
-    out[i] = data[i0] + (data[i1] - data[i0]) * frac;
-  }
-  return out;
-}
 
 function currentEqParams() {
   return {
@@ -1953,11 +1932,6 @@ processBtn.onclick = async () => {
   for (const layer of layers) {
     if (isLayerEffectivelyMuted(layer)) continue;
     const { channels: layerChannels, sr: layerSr } = getLayerTrimmedChannels(layer);
-    // Bring the layer to the master sample rate BEFORE stretching, so its
-    // rendered output length — and therefore its audible timing once placed
-    // at offsetSamples below — lines up with the master timebase that the
-    // timeline/playhead are drawn against.
-    const layerInput = resampleChannel(layerChannels[0], layerSr, sr);
     const layerOpts = {
       stretch: layer.stretch,
       windowSize: nextPow2(layer.windowSize),
@@ -1969,7 +1943,7 @@ processBtn.onclick = async () => {
       formantShift: baseOpts.formantShift,
       eqParams: baseOpts.eqParams
     };
-    const layerResult = await runStretchJob('stretch', layerInput, sr, layerOpts, p => reportProgress(stepIndex, totalSteps, p, layer.name));
+    const layerResult = await runStretchJob('stretch', layerChannels[0], layerSr, layerOpts, p => reportProgress(stepIndex, totalSteps, p, layer.name));
     const offsetSamples = Math.round((layer.startOffset || 0) * sr);
     mixLayerIntoOutChannels(outChannels, layerResult, layer.gain, offsetSamples);
     stepIndex++;
