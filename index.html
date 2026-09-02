@@ -82,6 +82,7 @@
   .timeline-ruler span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }
   .timeline-ruler span:first-child { transform: translateX(0); }
   .timeline-ruler span:last-child { transform: translateX(-100%); }
+  .output-ruler { margin-top: 4px; }
   .timeline-track { display: flex; flex-direction: column; gap: 2px; }
   .timeline-track-main { display: flex; align-items: center; gap: 8px; }
   .timeline-track-label { width: 72px; flex-shrink: 0; font-size: 0.66rem; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -211,6 +212,7 @@
         <span class="status-pill" id="statusDisplay">Idle</span>
       </div>
       <div class="canvas-container"><canvas id="outputCanvas"></canvas></div>
+      <div class="timeline-ruler output-ruler" id="outputRuler"></div>
       <div class="hint" style="margin-top:8px;">Click the output waveform to seek playback.</div>
       <div class="timeline-wrap timeline-wrap-mini" id="timelineWrap2">
         <div class="timeline-empty" id="timelineEmptyMsg2">Load audio to see the arrangement.</div>
@@ -511,6 +513,7 @@ const progressLabel = $('progressLabel');
 
 const sourceCanvas = $('sourceCanvas');
 const outputCanvas = $('outputCanvas');
+const outputRuler = $('outputRuler');
 const srcCtx = sourceCanvas.getContext('2d');
 const outCtx = outputCanvas.getContext('2d');
 
@@ -688,6 +691,7 @@ fileInput.addEventListener('change', (e) => {
       renderSourceView();
       renderTimeline();
       outCtx.clearRect(0, 0, outputCanvas.width, outputCanvas.height);
+      renderOutputRuler();
       processBtn.disabled = false;
       previewBtn.disabled = false;
       freezeBtn.disabled = false;
@@ -815,6 +819,18 @@ function formatTimelineTimePrecise(s) {
   const rem = s - m * 60;
   const sec = rem.toFixed(1).padStart(4, '0');
   return `${m}:${sec}`;
+}
+function renderOutputRuler() {
+  if (!outputRuler) return;
+  if (!stretchedChannels) { outputRuler.innerHTML = ''; return; }
+  const dur = stretchedChannels[0].length / stretchedSampleRate;
+  const tickCount = 5;
+  let html = '';
+  for (let i = 0; i <= tickCount; i++) {
+    const pct = (i / tickCount) * 100;
+    html += `<span style="left:${pct}%">${formatTimelineTime(dur * i / tickCount)}</span>`;
+  }
+  outputRuler.innerHTML = html;
 }
 function estimateMainDuration() {
   if (!sourceBuffer) return 0;
@@ -2099,6 +2115,7 @@ function finishRender(outChannels, sr) {
   stretchedChannels = outChannels;
   stretchedSampleRate = sr;
   drawWaveform(outputCanvas, outCtx, stretchedChannels[0], '#ec4899');
+  renderOutputRuler();
   progressWrap.classList.remove('active');
   statusDisplay.textContent = 'Rendered';
   processBtn.disabled = false; freezeBtn.disabled = false; playBtn.disabled = false; downloadBtn.disabled = false; previewBtn.disabled = false;
