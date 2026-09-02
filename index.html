@@ -983,7 +983,7 @@ function updateTimelineGeometry() {
 function syncLayerStartInput(layer) {
   const row = layerList.querySelector(`.layer-row[data-layer-id="${layer.id}"]`);
   if (!row) return;
-  const startInput = row.querySelector('.layer-row-bottom .layer-start');
+  const startInput = row.querySelector('.layer-offset');
   if (startInput) startInput.value = (layer.startOffset || 0).toFixed(2);
   const trimStartInputEl = row.querySelector('.layer-trim-start');
   if (trimStartInputEl) trimStartInputEl.value = (layer.trimStart || 0).toFixed(2);
@@ -1000,14 +1000,12 @@ function handleTimelinePointerDown(e) {
   const lane = bar.closest('.timeline-track-lane');
   if (!lane) return;
   const laneRect = lane.getBoundingClientRect();
-  const { totalDur } = computeTimelineLayout();
   const handle = e.target.closest('.timeline-handle');
   timelineDrag = {
     type: handle ? (handle.classList.contains('timeline-handle-left') ? 'trim-left' : 'trim-right') : 'move',
     layer,
     startClientX: e.clientX,
     laneWidthPx: Math.max(1, laneRect.width),
-    totalDur,
     origStart: layer.startOffset || 0,
     origTrimStart: layer.trimStart || 0,
     origTrimEnd: (layer.trimEnd == null) ? layer.buffer.duration : layer.trimEnd,
@@ -1023,7 +1021,12 @@ function handleTimelinePointerMove(e) {
   if (!timelineDrag || e.pointerId !== timelineDrag.pointerId) return;
   const dxPx = e.clientX - timelineDrag.startClientX;
   if (Math.abs(dxPx) > 3) timelineDrag.moved = true;
-  const dRendered = (dxPx / timelineDrag.laneWidthPx) * timelineDrag.totalDur;
+  // Recompute totalDur live (not the value frozen at pointerdown) so the
+  // px-to-seconds scale used here always matches what updateTimelineGeometry
+  // renders below — otherwise the two drift apart as a drag extends the
+  // timeline and the bar stops tracking the cursor 1:1.
+  const { totalDur } = computeTimelineLayout();
+  const dRendered = (dxPx / timelineDrag.laneWidthPx) * totalDur;
   const layer = timelineDrag.layer;
   const bufDur = layer.buffer.duration;
   if (timelineDrag.type === 'move') {
@@ -1230,7 +1233,7 @@ function renderLayerList() {
       </div>
       <div class="layer-row-bottom">
         <span class="layer-start-label">Start</span>
-        <input type="number" class="layer-start" min="0" step="0.5" value="${layer.startOffset || 0}" title="Start offset (seconds into the output)">
+        <input type="number" class="layer-start layer-offset" min="0" step="0.5" value="${layer.startOffset || 0}" title="Start offset (seconds into the output)">
         <input type="range" class="layer-gain" min="0" max="1.5" step="0.05" value="${layer.gain}" title="Layer volume">
         <span class="layer-gain-val">${layer.gain.toFixed(2)}x</span>
         <button class="layer-autogain" title="Auto-gain to match main source loudness">⚖</button>
@@ -1278,7 +1281,7 @@ function renderLayerList() {
       layer.trimEnd = layer.buffer.duration;
       renderLayerList();
     });
-    row.querySelector('.layer-start').addEventListener('change', (e) => {
+    row.querySelector('.layer-offset').addEventListener('change', (e) => {
       layer.startOffset = Math.max(0, parseFloat(e.target.value) || 0);
       renderTimeline();
     });
