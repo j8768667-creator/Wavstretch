@@ -519,8 +519,8 @@ const modeAdvancedBtn = $('modeAdvancedBtn');
 // ---------------------------------------------------------------------------
 const PRESETS = [
   { category: 'Utility', tag: 'Flat', name: 'No Change (Passthrough)', stretch: 1, windowSize: 2048, phase: 0, wtype: 'hann',
-    formant: 1, transient: true, transGain: 0.8,
-    desc: 'Effectively unprocessed: 1x length, no formant shift, flat EQ, transients kept — use this to bring a sample in clean before deciding on an effect.' },
+    formant: 1, transient: false, stereoWiden: true,
+    desc: 'A true passthrough: 1x length, no formant shift, flat EQ, transient detection off — the render engine skips its processing entirely and hands back the original samples untouched. Use this to bring a sample in clean before deciding on an effect.' },
 
   { category: 'Ambient / Pads', tag: 'Delicate', name: 'Music Box Echo', stretch: 2, windowSize: 2048, phase: 0.15, wtype: 'gaussian' },
   { category: 'Ambient / Pads', tag: 'Subtle', name: 'Slow Swell', stretch: 3, windowSize: 4096, phase: 0.25, wtype: 'hann' },
@@ -712,6 +712,8 @@ function applyMainPreset(idx) {
   phaseInput.value = p.phase;
   stretchInput.dispatchEvent(new Event('input'));
   phaseInput.dispatchEvent(new Event('input'));
+
+  if (p.stereoWiden != null) stereoWidenInput.checked = p.stereoWiden;
 
   formantInput.value = p.formant != null ? p.formant : 1;
   formantInput.dispatchEvent(new Event('input'));
@@ -1692,6 +1694,20 @@ function makeEqGainFn(lowDb, midDb, highDb, xover1, xover2) {
 }
 async function stretchBuffer(input, sampleRate, opts, onProgress) {
   const { stretch, windowSize, windowType, windowTypeB, morphEnabled, morphRateHz, phaseAmount, formantShift, eqGainFn } = opts;
+
+  // Exact passthrough: any STFT analysis/resynthesis (even at 1x stretch)
+  // introduces small windowing artifacts, because the same window is applied
+  // on both analysis and synthesis and their overlap-add sum isn't perfectly
+  // flat. When nothing would actually change the signal — stretch is ~1x, no
+  // formant shift, no phase randomization, and EQ is flat — skip the whole
+  // pipeline and hand back the original samples untouched.
+  const eqIsFlat = !eqGainFn || [20, 200, 1000, 5000, 15000].every(f => Math.abs(eqGainFn(f) - 1) < 1e-9);
+  if (!morphEnabled && Math.abs(stretch - 1) < 1e-6 && formantShift === 1 && phaseAmount === 0 && eqIsFlat) {
+    onProgress(1);
+    const result = new Float32Array(input.length);
+    result.set(input);
+    return result;
+  }
   const winA = generateWindow(windowType, windowSize);
   const winB = morphEnabled ? generateWindow(windowTypeB, windowSize) : null;
   const half = windowSize / 2;
