@@ -82,9 +82,11 @@
   .timeline-ruler span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }
   .timeline-ruler span:first-child { transform: translateX(0); }
   .timeline-ruler span:last-child { transform: translateX(-100%); }
-  .timeline-track { display: flex; align-items: center; gap: 8px; }
+  .timeline-track { display: flex; flex-direction: column; gap: 2px; }
+  .timeline-track-main { display: flex; align-items: center; gap: 8px; }
   .timeline-track-label { width: 72px; flex-shrink: 0; font-size: 0.66rem; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .timeline-track-lane { position: relative; flex: 1; height: 20px; background: rgba(0,0,0,0.3); border-radius: 6px; overflow: hidden; }
+  .timeline-track-times { font-size: 0.6rem; color: var(--text-muted); opacity: 0.85; margin-left: 108px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .timeline-bar { position: absolute; top: 2px; bottom: 2px; min-width: 18px; border-radius: 4px; background: linear-gradient(135deg, #6366f1, #ec4899); opacity: 0.9; transition: opacity 0.15s ease; }
   .timeline-bar.main-bar { background: linear-gradient(135deg, #6366f1, #4f46e5); }
   .timeline-bar.muted-bar { opacity: 0.2; filter: grayscale(1); }
@@ -804,6 +806,16 @@ function formatTimelineTime(s) {
   const sec = Math.floor(s % 60).toString().padStart(2, '0');
   return `${m}:${sec}`;
 }
+// Same as formatTimelineTime but keeps one decimal place, so short/trimmed
+// layers (well under a second of visible bar width) still get a readable,
+// non-zero-looking duration instead of always rounding down to :00.
+function formatTimelineTimePrecise(s) {
+  s = Math.max(0, s || 0);
+  const m = Math.floor(s / 60);
+  const rem = s - m * 60;
+  const sec = rem.toFixed(1).padStart(4, '0');
+  return `${m}:${sec}`;
+}
 function estimateMainDuration() {
   if (!sourceBuffer) return 0;
   const dur = sourceBuffer.duration;
@@ -926,9 +938,12 @@ function computeTimelineLayout() {
 function updateTimelineGeometry() {
   const { mainDur, totalDur, layerInfo } = computeTimelineLayout();
   const mainWidthPct = Math.max(0, (mainDur / totalDur) * 100);
+  const mainTimesLabel = `${formatTimelineTimePrecise(0)}\u2013${formatTimelineTimePrecise(mainDur)} &middot; ${formatTimelineTimePrecise(mainDur)} long`;
   for (const wrap of [timelineWrap, timelineWrap2]) {
     const mainBar = wrap.querySelector('.timeline-bar[data-key="main"]');
     if (mainBar) mainBar.style.width = mainWidthPct + '%';
+    const mainTrack = wrap.querySelector('.timeline-track[data-key="main"] .timeline-track-times');
+    if (mainTrack) { mainTrack.innerHTML = mainTimesLabel; mainTrack.title = mainTimesLabel.replace('&middot;', '\u00b7'); }
     const rulerSpans = wrap.querySelectorAll('.timeline-ruler span');
     const n = Math.max(1, rulerSpans.length - 1);
     rulerSpans.forEach((span, i) => { span.textContent = formatTimelineTime(totalDur * i / n); });
@@ -937,9 +952,12 @@ function updateTimelineGeometry() {
     const key = String(layer.id);
     const startPct = Math.max(0, Math.min(100, (start / totalDur) * 100));
     const widthPct = Math.max(0, (dur / totalDur) * 100);
+    const layerTimesLabel = `${formatTimelineTimePrecise(start)}\u2013${formatTimelineTimePrecise(start + dur)} &middot; ${formatTimelineTimePrecise(dur)} long`;
     for (const wrap of [timelineWrap, timelineWrap2]) {
       const bar = wrap.querySelector(`.timeline-bar[data-key="${key}"]`);
       if (bar) { bar.style.left = startPct + '%'; bar.style.width = widthPct + '%'; }
+      const timesEl = wrap.querySelector(`.timeline-track[data-key="${key}"] .timeline-track-times`);
+      if (timesEl) { timesEl.innerHTML = layerTimesLabel; timesEl.title = layerTimesLabel.replace('&middot;', '\u00b7'); }
     }
   }
 }
@@ -1118,13 +1136,17 @@ function renderTimeline() {
   const mainWidthPct = Math.max(0, (mainDur / totalDur) * 100);
   const mainSelected = selectedTimelineKey === 'main';
   const mainPreviewIcon = previewingKey === 'main' ? '■' : '▶';
+  const mainTimesLabel = `${formatTimelineTimePrecise(0)}\u2013${formatTimelineTimePrecise(mainDur)} &middot; ${formatTimelineTimePrecise(mainDur)} long`;
   let tracksHtml = `
     <div class="timeline-track ${mainSelected ? 'selected' : ''}" data-key="main">
-      <button class="timeline-preview-btn ${previewingKey === 'main' ? 'playing' : ''}" data-key="main" type="button" title="Preview the source">${mainPreviewIcon}</button>
-      <div class="timeline-track-label">Source</div>
-      <div class="timeline-track-lane">
-        <div class="timeline-bar main-bar ${mainMutedEff ? 'muted-bar' : ''} ${mainSolo ? 'solo-bar' : ''}" data-key="main" style="left:0%;width:${mainWidthPct}%"></div>
+      <div class="timeline-track-main">
+        <button class="timeline-preview-btn ${previewingKey === 'main' ? 'playing' : ''}" data-key="main" type="button" title="Preview the source">${mainPreviewIcon}</button>
+        <div class="timeline-track-label">Source</div>
+        <div class="timeline-track-lane">
+          <div class="timeline-bar main-bar ${mainMutedEff ? 'muted-bar' : ''} ${mainSolo ? 'solo-bar' : ''}" data-key="main" style="left:0%;width:${mainWidthPct}%"></div>
+        </div>
       </div>
+      <div class="timeline-track-times" title="${mainTimesLabel}">${mainTimesLabel}</div>
     </div>`;
   for (const { layer, dur, start } of layerInfo) {
     const startPct = Math.max(0, Math.min(100, (start / totalDur) * 100));
@@ -1133,16 +1155,20 @@ function renderTimeline() {
     const key = String(layer.id);
     const isSelected = selectedTimelineKey === key;
     const previewIcon = previewingKey === key ? '■' : '▶';
+    const layerTimesLabel = `${formatTimelineTimePrecise(start)}\u2013${formatTimelineTimePrecise(start + dur)} &middot; ${formatTimelineTimePrecise(dur)} long`;
     tracksHtml += `
       <div class="timeline-track ${isSelected ? 'selected' : ''}" data-key="${key}">
-        <button class="timeline-preview-btn ${previewingKey === key ? 'playing' : ''}" data-key="${key}" type="button" title="Preview this layer">${previewIcon}</button>
-        <div class="timeline-track-label" title="${layer.name}">${layer.name}</div>
-        <div class="timeline-track-lane">
-          <div class="timeline-bar timeline-bar-draggable ${mutedEff ? 'muted-bar' : ''} ${layer.solo ? 'solo-bar' : ''}" data-key="${key}" tabindex="0" title="Drag to move • drag edges to trim • ←/→ to nudge (Shift = 1s)" style="left:${startPct}%;width:${widthPct}%">
-            <div class="timeline-handle timeline-handle-left"></div>
-            <div class="timeline-handle timeline-handle-right"></div>
+        <div class="timeline-track-main">
+          <button class="timeline-preview-btn ${previewingKey === key ? 'playing' : ''}" data-key="${key}" type="button" title="Preview this layer">${previewIcon}</button>
+          <div class="timeline-track-label" title="${layer.name}">${layer.name}</div>
+          <div class="timeline-track-lane">
+            <div class="timeline-bar timeline-bar-draggable ${mutedEff ? 'muted-bar' : ''} ${layer.solo ? 'solo-bar' : ''}" data-key="${key}" tabindex="0" title="Drag to move • drag edges to trim • ←/→ to nudge (Shift = 1s)" style="left:${startPct}%;width:${widthPct}%">
+              <div class="timeline-handle timeline-handle-left"></div>
+              <div class="timeline-handle timeline-handle-right"></div>
+            </div>
           </div>
         </div>
+        <div class="timeline-track-times" title="${layerTimesLabel}">${layerTimesLabel}</div>
       </div>`;
   }
   for (const inst of instances) {
@@ -1234,7 +1260,7 @@ function renderLayerList() {
       layer.trimEnd = layer.buffer.duration;
       renderLayerList();
     });
-    row.querySelector('.layer-row-bottom .layer-start').addEventListener('change', (e) => {
+    row.querySelector('.layer-start').addEventListener('change', (e) => {
       layer.startOffset = Math.max(0, parseFloat(e.target.value) || 0);
       renderTimeline();
     });
