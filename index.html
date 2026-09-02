@@ -12,6 +12,7 @@
     --pink-glow: rgba(236, 72, 153, 0.15); --green: #22c55e; --amber: #f59e0b;
   }
   * { box-sizing: border-box; user-select: none; -webkit-user-select: none; touch-action: manipulation; }
+  input, textarea, select { user-select: text; -webkit-user-select: text; touch-action: auto; }
   body {
     margin: 0; padding: 20px; background-color: var(--bg-dark); color: var(--text-main);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -37,7 +38,7 @@
 
   .waveform-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
   .waveform-title { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; display: flex; justify-content: space-between; }
-  .canvas-container { height: 84px; width: 100%; background: rgba(0,0,0,0.3); border-radius: 8px; overflow: hidden; position: relative; }
+  .canvas-container { height: 140px; width: 100%; background: rgba(0,0,0,0.3); border-radius: 8px; overflow: hidden; position: relative; }
   canvas { width: 100%; height: 100%; display: block; }
   #sourceCanvas { touch-action: none; cursor: ew-resize; }
   #outputCanvas { touch-action: none; cursor: pointer; }
@@ -47,12 +48,8 @@
   .trim-field label { font-size: 0.7rem; color: var(--text-muted); display: block; margin-bottom: 4px; }
   .trim-field input { width: 100%; background: rgba(0,0,0,0.3); border: 1px solid var(--border); color: var(--text-main); border-radius: 6px; padding: 6px 8px; font-size: 0.8rem; }
 
-  .preset-list { display: flex; flex-direction: column; gap: 6px; }
-  .preset-row { display: flex; align-items: center; gap: 10px; background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; cursor: pointer; }
-  .preset-row:active, .preset-row.active { border-color: var(--accent-pink); background: var(--pink-glow); }
-  .preset-row .tag { font-size: 0.62rem; color: var(--accent-pink); text-transform: uppercase; font-weight: 700; width: 62px; flex-shrink: 0; }
-  .preset-row .name { font-size: 0.85rem; font-weight: 600; flex: 1; }
-  .preset-row .sub { font-size: 0.66rem; color: var(--text-muted); flex-shrink: 0; }
+  .preset-select { width: 100%; background: var(--card-bg); border: 1px solid var(--border); color: var(--text-main); border-radius: 8px; padding: 10px 12px; font-size: 0.85rem; font-weight: 600; }
+  #presetDesc { line-height: 1.4; }
 
   .layer-list { display: flex; flex-direction: column; gap: 6px; }
   .layer-row { display: flex; flex-direction: column; gap: 6px; background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; }
@@ -78,7 +75,7 @@
 
   .timeline-wrap { display: flex; flex-direction: column; gap: 8px; }
   .timeline-empty { font-size: 0.72rem; color: var(--text-muted); padding: 4px 2px; }
-  .timeline-ruler { position: relative; height: 14px; font-size: 0.6rem; color: var(--text-muted); }
+  .timeline-ruler { position: relative; height: 16px; font-size: 0.66rem; color: var(--text-muted); border-bottom: 1px solid var(--border); margin-bottom: 2px; }
   .timeline-ruler span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }
   .timeline-ruler span:first-child { transform: translateX(0); }
   .timeline-ruler span:last-child { transform: translateX(-100%); }
@@ -86,7 +83,7 @@
   .timeline-track { display: flex; flex-direction: column; gap: 2px; }
   .timeline-track-main { display: flex; align-items: center; gap: 8px; }
   .timeline-track-label { width: 72px; flex-shrink: 0; font-size: 0.66rem; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .timeline-track-lane { position: relative; flex: 1; height: 20px; background: rgba(0,0,0,0.3); border-radius: 6px; overflow: hidden; }
+  .timeline-track-lane { position: relative; flex: 1; height: 30px; background: rgba(0,0,0,0.3); border-radius: 6px; overflow: hidden; }
   .timeline-track-times { font-size: 0.6rem; color: var(--text-muted); opacity: 0.85; margin-left: 108px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .timeline-bar { position: absolute; top: 2px; bottom: 2px; min-width: 18px; border-radius: 4px; background: linear-gradient(135deg, #6366f1, #ec4899); opacity: 0.9; transition: opacity 0.15s ease; }
   .timeline-bar.main-bar { background: linear-gradient(135deg, #6366f1, #4f46e5); }
@@ -103,7 +100,7 @@
   .timeline-status { font-size: 0.68rem; color: var(--text-muted); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .btn-mini { background: var(--card-hover); border: 1px solid var(--border); color: var(--text-main); border-radius: 6px; padding: 6px 10px; font-size: 0.7rem; font-weight: 700; cursor: pointer; flex-shrink: 0; }
   .btn-mini:disabled { opacity: 0.4; cursor: default; }
-  .timeline-track { border-radius: 6px; padding: 2px 3px; margin: 0 -3px; cursor: pointer; }
+  .timeline-track { border-radius: 6px; padding: 2px 3px; margin: 0 -3px 6px -3px; cursor: pointer; }
   .timeline-track.selected { background: var(--pink-glow); }
   .timeline-preview-btn { background: var(--card-hover); border: 1px solid var(--border); color: var(--text-main); border-radius: 50%; width: 20px; height: 20px; font-size: 0.55rem; cursor: pointer; flex-shrink: 0; padding: 0; line-height: 1; }
   .timeline-preview-btn.playing { background: var(--green); border-color: var(--green); color: #062b12; }
@@ -267,59 +264,11 @@
 
   <!-- Right Column -->
   <div class="panel">
-    <div class="section-label">Presets</div>
-    <input type="text" id="presetFilter" placeholder="Filter presets (e.g. &quot;dark&quot;, &quot;subtle&quot;, &quot;60x&quot;)" style="margin-bottom: 2px;">
-    <div class="preset-list" id="presetList">
-      <div class="preset-row" data-stretch="2" data-window="2048" data-phase="0.15" data-wtype="gaussian">
-        <span class="tag">Delicate</span><span class="name">Music Box Echo</span><span class="sub">2x</span>
-      </div>
-      <div class="preset-row" data-stretch="3" data-window="4096" data-phase="0.25" data-wtype="hann">
-        <span class="tag">Subtle</span><span class="name">Slow Swell</span><span class="sub">3x</span>
-      </div>
-      <div class="preset-row" data-stretch="3.5" data-window="4096" data-phase="0.3" data-wtype="gaussian">
-        <span class="tag">Bright</span><span class="name">Crystal Chime</span><span class="sub">3.5x</span>
-      </div>
-      <div class="preset-row" data-stretch="4" data-window="2048" data-phase="0.5" data-wtype="hamming">
-        <span class="tag">Lo-Fi</span><span class="name">Tape Ghost</span><span class="sub">4x</span>
-      </div>
-      <div class="preset-row" data-stretch="5" data-window="8192" data-phase="0.5" data-wtype="gaussian">
-        <span class="tag">Warm</span><span class="name">Sunrise Swell</span><span class="sub">5x</span>
-      </div>
-      <div class="preset-row" data-stretch="6" data-window="4096" data-phase="0.4" data-wtype="hamming">
-        <span class="tag">Retro</span><span class="name">Radio Fade</span><span class="sub">6x</span>
-      </div>
-      <div class="preset-row active" data-stretch="8" data-window="8192" data-phase="1.0" data-wtype="hann">
-        <span class="tag">Ethereal</span><span class="name">Dreamy Choir</span><span class="sub">8x</span>
-      </div>
-      <div class="preset-row" data-stretch="10" data-window="16384" data-phase="0.7" data-wtype="hann">
-        <span class="tag">Ambient</span><span class="name">Ocean Drift</span><span class="sub">10x</span>
-      </div>
-      <div class="preset-row" data-stretch="12" data-window="8192" data-phase="0.9" data-wtype="hamming">
-        <span class="tag">Grit</span><span class="name">Industrial Haze</span><span class="sub">12x</span>
-      </div>
-      <div class="preset-row" data-stretch="14" data-window="16384" data-phase="0.85" data-wtype="hann">
-        <span class="tag">Cinematic</span><span class="name">Horror Pad</span><span class="sub">14x</span>
-      </div>
-      <div class="preset-row" data-stretch="20" data-window="8192" data-phase="0.6" data-wtype="gaussian">
-        <span class="tag">Organic</span><span class="name">Whale Song</span><span class="sub">20x</span>
-      </div>
-      <div class="preset-row" data-stretch="25" data-window="16384" data-phase="0.95" data-wtype="blackman">
-        <span class="tag">Synthwave</span><span class="name">Neon Fog</span><span class="sub">25x</span>
-      </div>
-      <div class="preset-row" data-stretch="30" data-window="32768" data-phase="1.0" data-wtype="blackman">
-        <span class="tag">Dark</span><span class="name">Abyss Drone</span><span class="sub">30x</span>
-      </div>
-      <div class="preset-row" data-stretch="45" data-window="65536" data-phase="1.0" data-wtype="blackman">
-        <span class="tag">Icy</span><span class="name">Glacial Fields</span><span class="sub">45x</span>
-      </div>
-      <div class="preset-row" data-stretch="60" data-window="65536" data-phase="1.0" data-wtype="blackman">
-        <span class="tag">Cosmic</span><span class="name">Deep Space</span><span class="sub">60x</span>
-      </div>
-      <div class="preset-row" data-stretch="80" data-window="32768" data-phase="1.0" data-wtype="blackman">
-        <span class="tag">Extreme</span><span class="name">Void Whisper</span><span class="sub">80x</span>
-      </div>
+    <div class="section-label">Presets <span class="badge" id="presetCountBadge"></span></div>
+    <div class="control-group" style="gap:6px;">
+      <select id="presetSelect" class="preset-select"></select>
+      <div class="hint" id="presetDesc">Pick a preset to set the stretch engine, formant, EQ, transients, and (where relevant) freeze/multiband controls all at once.</div>
     </div>
-    <div class="progress-label" id="presetFilterEmpty" style="display:none;">No presets match.</div>
 
     <div class="control-group">
       <div class="control-header"><span>Stretch Factor</span><span class="val" id="stretchVal">8.0x</span></div>
@@ -562,14 +511,117 @@ const syncResult = $('syncResult');
 const modeSimpleBtn = $('modeSimpleBtn');
 const modeAdvancedBtn = $('modeAdvancedBtn');
 
-const PRESETS = Array.from(document.querySelectorAll('.preset-row')).map(row => ({
-  tag: row.querySelector('.tag').textContent,
-  name: row.querySelector('.name').textContent,
-  stretch: parseFloat(row.dataset.stretch),
-  windowSize: parseInt(row.dataset.window, 10),
-  phase: parseFloat(row.dataset.phase),
-  wtype: row.dataset.wtype
-}));
+// ---------------------------------------------------------------------------
+// Presets — each entry drives stretch/window/phase (used everywhere,
+// including per-layer overrides) plus, for the main source only, the fuller
+// set of advanced controls (formant, transient preservation, EQ, live
+// filters, multiband, freeze) so a single pick dials in a whole sound.
+// ---------------------------------------------------------------------------
+const PRESETS = [
+  { category: 'Utility', tag: 'Flat', name: 'No Change (Passthrough)', stretch: 1, windowSize: 2048, phase: 0, wtype: 'hann',
+    formant: 1, transient: true, transGain: 0.8,
+    desc: 'Effectively unprocessed: 1x length, no formant shift, flat EQ, transients kept — use this to bring a sample in clean before deciding on an effect.' },
+
+  { category: 'Ambient / Pads', tag: 'Delicate', name: 'Music Box Echo', stretch: 2, windowSize: 2048, phase: 0.15, wtype: 'gaussian' },
+  { category: 'Ambient / Pads', tag: 'Subtle', name: 'Slow Swell', stretch: 3, windowSize: 4096, phase: 0.25, wtype: 'hann' },
+  { category: 'Ambient / Pads', tag: 'Bright', name: 'Crystal Chime', stretch: 3.5, windowSize: 4096, phase: 0.3, wtype: 'gaussian' },
+  { category: 'Ambient / Pads', tag: 'Warm', name: 'Sunrise Swell', stretch: 5, windowSize: 8192, phase: 0.5, wtype: 'gaussian' },
+  { category: 'Ambient / Pads', tag: 'Ethereal', name: 'Dreamy Choir', stretch: 8, windowSize: 8192, phase: 1.0, wtype: 'hann' },
+  { category: 'Ambient / Pads', tag: 'Ambient', name: 'Ocean Drift', stretch: 10, windowSize: 16384, phase: 0.7, wtype: 'hann' },
+  { category: 'Ambient / Pads', tag: 'Airy', name: 'Ethereal Ambient Pad', stretch: 15, windowSize: 8192, phase: 1.0, wtype: 'hann',
+    formant: 1.18, transient: false, eq: { low: -5, mid: 0, high: 2, x1: 350, x2: 3500 }, lowpass: 12000,
+    desc: 'For vocals, keys & strings: formant +1.18x for an airy, otherworldly brightness; transients off so notes melt together; low cut to avoid mud, gentle high shelf for shimmer; 12kHz live low-pass tames stretch fizz.' },
+
+  { category: 'Lo-Fi / Retro', tag: 'Lo-Fi', name: 'Tape Ghost', stretch: 4, windowSize: 2048, phase: 0.5, wtype: 'hamming' },
+  { category: 'Lo-Fi / Retro', tag: 'Retro', name: 'Radio Fade', stretch: 6, windowSize: 4096, phase: 0.4, wtype: 'hamming' },
+  { category: 'Lo-Fi / Retro', tag: 'Synthwave', name: 'Neon Fog', stretch: 25, windowSize: 16384, phase: 0.95, wtype: 'blackman' },
+
+  { category: 'Cinematic / Dark', tag: 'Grit', name: 'Industrial Haze', stretch: 12, windowSize: 8192, phase: 0.9, wtype: 'hamming' },
+  { category: 'Cinematic / Dark', tag: 'Cinematic', name: 'Horror Pad', stretch: 14, windowSize: 16384, phase: 0.85, wtype: 'hann' },
+  { category: 'Cinematic / Dark', tag: 'Dark', name: 'Abyss Drone', stretch: 30, windowSize: 32768, phase: 1.0, wtype: 'blackman' },
+  { category: 'Cinematic / Dark', tag: 'Massive', name: 'Cinematic Drone', stretch: 20, windowSize: 16384, phase: 0.9, wtype: 'blackman',
+    formant: 0.78, transient: false, eq: { low: 3, mid: -2, high: -6, x1: 200, x2: 2500 }, lowpass: 4500,
+    desc: 'For basslines, field recordings & heavy synths: formant dropped to 0.78x for a deep, threatening resonance; sub boosted, boxy mids scooped, highs darkened; 4.5kHz live low-pass for a dark, muffled underwater feel.' },
+
+  { category: 'Extreme / Space', tag: 'Organic', name: 'Whale Song', stretch: 20, windowSize: 8192, phase: 0.6, wtype: 'gaussian' },
+  { category: 'Extreme / Space', tag: 'Icy', name: 'Glacial Fields', stretch: 45, windowSize: 65536, phase: 1.0, wtype: 'blackman' },
+  { category: 'Extreme / Space', tag: 'Cosmic', name: 'Deep Space', stretch: 60, windowSize: 65536, phase: 1.0, wtype: 'blackman' },
+  { category: 'Extreme / Space', tag: 'Extreme', name: 'Void Whisper', stretch: 80, windowSize: 32768, phase: 1.0, wtype: 'blackman' },
+
+  { category: 'Rhythmic / Drums', tag: 'Tight', name: 'Punchy Loop Stretch', stretch: 2, windowSize: 2048, phase: 0.1, wtype: 'hann',
+    formant: 1, transient: true, transGain: 1.0,
+    desc: 'Gently extends a drum loop while transient preservation keeps every hit sharp and punchy.' },
+  { category: 'Rhythmic / Drums', tag: 'Glitch', name: 'Glitchy IDM Rhythm', stretch: 6, windowSize: 4096, phase: 0.3, wtype: 'hann',
+    formant: 1, transient: true, transGain: 0.9, multiband: { x1: 300, x2: 3000, low: 2, mid: 6, high: 20 },
+    desc: 'Transient preservation keeps kicks/snares punchy while frequency-selective stretch smears the highs (hi-hats) into metallic dust much further than the lows (kick), so the beat stays recognizable but abstract.' },
+  { category: 'Rhythmic / Drums', tag: 'Industrial', name: 'Mechanical Drum Wall', stretch: 10, windowSize: 4096, phase: 0.5, wtype: 'hamming',
+    formant: 0.9, transient: true, transGain: 0.7, eq: { low: 2, mid: -1, high: 1, x1: 250, x2: 3000 },
+    desc: 'A heavier, lo-fi industrial grind on a drum loop — formant pulled down slightly, hits still poking through the wash.' },
+
+  { category: 'Vocals', tag: 'Choir', name: 'Angelic Vocal Wash', stretch: 12, windowSize: 8192, phase: 0.7, wtype: 'hann',
+    formant: 1.12, transient: false, eq: { low: -3, mid: 0, high: 3, x1: 300, x2: 4000 },
+    desc: 'Turns a vocal phrase into a lush angelic background wash — formant lifted, low end cleared, breathy highs boosted.' },
+  { category: 'Vocals', tag: 'Whisper', name: 'Breathy Vocal Texture', stretch: 8, windowSize: 4096, phase: 0.85, wtype: 'gaussian',
+    formant: 1.2, transient: false, eq: { low: -6, mid: -1, high: 4, x1: 300, x2: 5000 },
+    desc: 'Emphasizes breath and air over body — strong low cut, high boost, formant pushed up for a whispery texture.' },
+  { category: 'Vocals', tag: 'Deep', name: 'Monster Vocal Drone', stretch: 10, windowSize: 8192, phase: 0.6, wtype: 'hamming',
+    formant: 0.65, transient: false, eq: { low: 2, mid: 0, high: -4, x1: 250, x2: 2500 },
+    desc: 'Deepens a vocal into a menacing sub-throat drone — formant dropped to 0.65x, highs darkened.' },
+
+  { category: 'Guitar', tag: 'Ambient', name: 'Shimmer Guitar Swell', stretch: 8, windowSize: 4096, phase: 0.5, wtype: 'hann',
+    formant: 1.05, transient: false, eq: { low: -2, mid: 0, high: 2, x1: 300, x2: 4000 },
+    desc: 'Turns a guitar phrase into a shimmering ambient swell with a light high lift.' },
+  { category: 'Guitar', tag: 'Drone', name: 'Sustained Guitar Drone', stretch: 16, windowSize: 8192, phase: 0.8, wtype: 'blackman',
+    formant: 0.95, transient: false,
+    desc: 'Long, smooth sustained drone from a guitar chord or note, slightly weighted formant.' },
+  { category: 'Guitar', tag: 'Pick', name: 'Picked Riff Texture', stretch: 3, windowSize: 2048, phase: 0.3, wtype: 'hamming',
+    formant: 1, transient: true, transGain: 0.85,
+    desc: 'Light stretch on a picked riff that keeps individual pick attacks defined.' },
+
+  { category: 'Piano / Keys', tag: 'Glass', name: 'Glass Piano Pad', stretch: 10, windowSize: 8192, phase: 0.5, wtype: 'hann',
+    formant: 1.05, transient: false, eq: { low: -2, mid: 0, high: 3, x1: 300, x2: 5000 },
+    desc: 'Bright, glassy sustained pad from a piano or keys phrase.' },
+  { category: 'Piano / Keys', tag: 'Sustain', name: 'Sustained Chord Wash', stretch: 14, windowSize: 16384, phase: 0.7, wtype: 'blackman',
+    formant: 1, transient: false,
+    desc: 'Smooth, even wash for a sustained chord — larger window for a clean, low-phasiness pitch.' },
+  { category: 'Piano / Keys', tag: 'Twinkle', name: 'Music Box Shimmer', stretch: 4, windowSize: 2048, phase: 0.3, wtype: 'gaussian',
+    formant: 1.1, transient: true, transGain: 0.8,
+    desc: 'Short melodic phrases become a twinkling music-box shimmer, note attacks still audible.' },
+
+  { category: 'Bass', tag: 'Sub', name: 'Sub Bass Wall', stretch: 12, windowSize: 16384, phase: 0.6, wtype: 'blackman',
+    formant: 0.8, transient: false, eq: { low: 5, mid: -2, high: -8, x1: 150, x2: 1500 }, lowpass: 3000,
+    desc: 'Massive sub-bass wall — sub boosted, boxy mids scooped, highs cut hard, 3kHz live low-pass for warmth.' },
+  { category: 'Bass', tag: 'Growl', name: 'Bass Growl Texture', stretch: 6, windowSize: 4096, phase: 0.5, wtype: 'hamming',
+    formant: 0.75, transient: false, eq: { low: 2, mid: 1, high: -3, x1: 200, x2: 2000 },
+    desc: 'Growling, throaty bass texture with the formant pulled well down.' },
+
+  { category: 'Freeze / Synth', tag: 'Vapor', name: 'Infinite Vaporwave Freeze', stretch: 1, windowSize: 8192, phase: 1.0, wtype: 'hann',
+    formant: 0.95, transient: false, eq: { low: 0, mid: 0, high: 0, x1: 400, x2: 4000 }, freeze: { pos: 45, dur: 20 },
+    desc: 'Classic 90s ambient block texture: freezes a single moment (default 45% into the clip) for 20s+. Formant relaxed to 0.95x, EQ kept flat to transparently capture the frozen slice. Set the freeze position/duration below, then use "Render Freeze Drone" (not the regular render button).' },
+  { category: 'Freeze / Synth', tag: 'Frozen', name: 'Frozen Chord Texture', stretch: 1, windowSize: 16384, phase: 1.0, wtype: 'blackman',
+    formant: 1, transient: false, freeze: { pos: 30, dur: 30 },
+    desc: 'Freezes a rich chord or sustain moment into a long held texture. Use "Render Freeze Drone" to render this one.' }
+];
+
+// Builds grouped <optgroup> HTML from PRESETS, in category order of first
+// appearance. `withDefault` prepends a "no preset" option at value -1.
+function buildPresetOptionsHtml(withDefaultLabel) {
+  const groups = new Map();
+  PRESETS.forEach((p, i) => {
+    if (!groups.has(p.category)) groups.set(p.category, []);
+    groups.get(p.category).push(i);
+  });
+  let html = withDefaultLabel ? `<option value="-1">${withDefaultLabel}</option>` : '';
+  for (const [cat, idxs] of groups) {
+    html += `<optgroup label="${cat}">`;
+    for (const i of idxs) {
+      const p = PRESETS[i];
+      html += `<option value="${i}">${p.tag} — ${p.name} (${p.stretch}x)</option>`;
+    }
+    html += `</optgroup>`;
+  }
+  return html;
+}
 
 // ---------------------------------------------------------------------------
 // Simple / Advanced mode
@@ -639,32 +691,79 @@ syncBtn.onclick = () => {
   syncResult.textContent = `${clipLen.toFixed(2)}s clip -> ${targetSeconds.toFixed(2)}s (${bars} bars @ ${bpm} BPM) = ${ratio.toFixed(2)}x stretch${ratio !== clamped ? ' (clamped to range)' : ''}`;
 };
 
-const presetFilterInput = $('presetFilter');
-const presetFilterEmpty = $('presetFilterEmpty');
-presetFilterInput.addEventListener('input', () => {
-  const q = presetFilterInput.value.trim().toLowerCase();
-  let visibleCount = 0;
-  document.querySelectorAll('.preset-row').forEach(row => {
-    const text = row.textContent.toLowerCase();
-    const match = !q || text.includes(q);
-    row.classList.toggle('hidden', !match);
-    if (match) visibleCount++;
-  });
-  presetFilterEmpty.style.display = visibleCount === 0 ? 'block' : 'none';
+const presetSelectInput = $('presetSelect');
+const presetCountBadge = $('presetCountBadge');
+const presetDescEl = $('presetDesc');
+presetSelectInput.innerHTML = buildPresetOptionsHtml(null);
+presetCountBadge.textContent = `${PRESETS.length} presets`;
+
+// Applies a full preset to the MAIN source: stretch engine + (when the
+// preset specifies them) formant, transient preservation, EQ, live filters,
+// multiband and freeze — so one pick dials in the whole sound described by
+// the preset. Fields the preset doesn't mention are reset to neutral
+// defaults, so presets are always fully reproducible.
+function applyMainPreset(idx) {
+  if (idx < 0 || !PRESETS[idx]) return;
+  const p = PRESETS[idx];
+
+  stretchInput.value = p.stretch;
+  windowSizeInput.value = p.windowSize;
+  windowTypeInput.value = p.wtype;
+  phaseInput.value = p.phase;
+  stretchInput.dispatchEvent(new Event('input'));
+  phaseInput.dispatchEvent(new Event('input'));
+
+  formantInput.value = p.formant != null ? p.formant : 1;
+  formantInput.dispatchEvent(new Event('input'));
+
+  transientEnabledInput.checked = !!p.transient;
+  transientEnabledInput.dispatchEvent(new Event('change'));
+  transGainInput.value = p.transGain != null ? p.transGain : 0.8;
+  transGainInput.dispatchEvent(new Event('input'));
+
+  const eq = p.eq || { low: 0, mid: 0, high: 0, x1: 400, x2: 4000 };
+  eqLowInput.value = eq.low; eqLowInput.dispatchEvent(new Event('input'));
+  eqMidInput.value = eq.mid; eqMidInput.dispatchEvent(new Event('input'));
+  eqHighInput.value = eq.high; eqHighInput.dispatchEvent(new Event('input'));
+  eqXover1Input.value = eq.x1;
+  eqXover2Input.value = eq.x2;
+
+  lowpassInput.value = p.lowpass != null ? p.lowpass : 18000;
+  lowpassInput.dispatchEvent(new Event('input'));
+  highpassInput.value = p.highpass != null ? p.highpass : 20;
+  highpassInput.dispatchEvent(new Event('input'));
+
+  multibandEnabledInput.checked = !!p.multiband;
+  multibandEnabledInput.dispatchEvent(new Event('change'));
+  const mb = p.multiband || { x1: 300, x2: 3000, low: 2, mid: 8, high: 40 };
+  mbXover1Input.value = mb.x1;
+  mbXover2Input.value = mb.x2;
+  mbLowStretchInput.value = mb.low; mbLowStretchInput.dispatchEvent(new Event('input'));
+  mbMidStretchInput.value = mb.mid; mbMidStretchInput.dispatchEvent(new Event('input'));
+  mbHighStretchInput.value = mb.high; mbHighStretchInput.dispatchEvent(new Event('input'));
+
+  if (p.freeze) {
+    freezePosInput.value = p.freeze.pos; freezePosInput.dispatchEvent(new Event('input'));
+    freezeDurInput.value = p.freeze.dur; freezeDurInput.dispatchEvent(new Event('input'));
+  }
+
+  presetDescEl.textContent = p.desc || `${p.tag} — ${p.name}: ${p.stretch}x stretch, ${p.windowSize}-point ${p.wtype} window.`;
+  renderTimeline();
+}
+
+presetSelectInput.addEventListener('change', (e) => {
+  applyMainPreset(parseInt(e.target.value, 10));
 });
 
-document.querySelectorAll('.preset-row').forEach(row => {
-  row.addEventListener('click', () => {
-    document.querySelectorAll('.preset-row').forEach(c => c.classList.remove('active'));
-    row.classList.add('active');
-    stretchInput.value = row.dataset.stretch;
-    windowSizeInput.value = row.dataset.window;
-    phaseInput.value = row.dataset.phase;
-    windowTypeInput.value = row.dataset.wtype;
-    stretchInput.oninput({ target: stretchInput });
-    phaseInput.oninput({ target: phaseInput });
-  });
-});
+// Default selection matches the page's default control values (8x, 8192,
+// hann, phase 1.0) so picking a preset isn't required to get a sound.
+(function initDefaultPreset() {
+  const idx = PRESETS.findIndex(p => p.name === 'Dreamy Choir');
+  if (idx >= 0) {
+    presetSelectInput.value = String(idx);
+    presetDescEl.textContent = PRESETS[idx].desc || `${PRESETS[idx].tag} — ${PRESETS[idx].name}: ${PRESETS[idx].stretch}x stretch.`;
+  }
+})();
 
 // ---------------------------------------------------------------------------
 // File import (primary source)
@@ -826,7 +925,7 @@ function renderOutputRuler() {
   if (!outputRuler) return;
   if (!stretchedChannels) { outputRuler.innerHTML = ''; return; }
   const dur = stretchedChannels[0].length / stretchedSampleRate;
-  const tickCount = 5;
+  const tickCount = 8;
   let html = '';
   for (let i = 0; i <= tickCount; i++) {
     const pct = (i / tickCount) * 100;
@@ -1146,7 +1245,7 @@ function renderTimeline() {
 
   const { mainDur, totalDur, layerInfo } = computeTimelineLayout();
 
-  const tickCount = 5;
+  const tickCount = 8;
   let rulerHtml = '';
   for (let i = 0; i <= tickCount; i++) {
     const pct = (i / tickCount) * 100;
@@ -1202,7 +1301,7 @@ function renderLayerList() {
   layerList.querySelectorAll('.layer-row').forEach(el => el.remove());
   layerEmptyMsg.classList.toggle('hidden', layers.length > 0);
   layerCountBadge.textContent = layers.length ? `${layers.length + 1} sources` : '1 source';
-  const presetOptions = PRESETS.map((p, i) => `<option value="${i}">${p.name} (${p.stretch}x)</option>`).join('');
+  const presetOptions = buildPresetOptionsHtml(null);
   for (const layer of layers) {
     const row = document.createElement('div');
     row.className = `layer-row ${isLayerEffectivelyMuted(layer) ? 'layer-row-muted' : ''}`;
@@ -1233,7 +1332,7 @@ function renderLayerList() {
       </div>
       <div class="layer-row-bottom">
         <span class="layer-start-label">Start</span>
-        <input type="number" class="layer-start layer-offset" min="0" step="0.5" value="${layer.startOffset || 0}" title="Start offset (seconds into the output)">
+        <input type="number" inputmode="decimal" class="layer-start layer-offset" min="0" step="0.5" value="${layer.startOffset || 0}" title="Start offset (seconds into the output)">
         <input type="range" class="layer-gain" min="0" max="1.5" step="0.05" value="${layer.gain}" title="Layer volume">
         <span class="layer-gain-val">${layer.gain.toFixed(2)}x</span>
         <button class="layer-autogain" title="Auto-gain to match main source loudness">⚖</button>
@@ -1281,7 +1380,7 @@ function renderLayerList() {
       layer.trimEnd = layer.buffer.duration;
       renderLayerList();
     });
-    row.querySelector('.layer-offset').addEventListener('change', (e) => {
+    row.querySelector('.layer-offset').addEventListener('input', (e) => {
       layer.startOffset = Math.max(0, parseFloat(e.target.value) || 0);
       renderTimeline();
     });
