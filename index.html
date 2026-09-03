@@ -391,6 +391,53 @@
       <input type="range" id="freezeDur" min="5" max="120" step="1" value="20">
     </div>
 
+    <div class="section-label advanced-only hidden">Arpeggiator <span class="badge">movement</span></div>
+    <div class="control-group advanced-only hidden">
+      <div class="checkbox-row"><input type="checkbox" id="arpEnabled"><label for="arpEnabled">Turn the render into a pitched arpeggio</label></div>
+      <div class="collapsible-body hidden" id="arpBody">
+        <div class="hint">Re-pitches short grains pulled from one spot in the rendered texture into a repeating pattern. Runs on whatever you render next — the regular stretch or Freeze. Uses the BPM from the Tempo Sync Calculator above.</div>
+        <div class="two-col">
+          <div><label class="hint">Pattern</label>
+            <select id="arpPattern">
+              <option value="0,4,7">Major triad</option>
+              <option value="0,3,7">Minor triad</option>
+              <option value="0,4,7,11">Major 7</option>
+              <option value="0,3,7,10">Minor 7</option>
+              <option value="0,7">Fifths</option>
+              <option value="0,12">Octaves</option>
+              <option value="0,2,4,5,7,9,11,12">Major scale run</option>
+              <option value="custom">Custom…</option>
+            </select>
+          </div>
+          <div><label class="hint">Direction</label>
+            <select id="arpDirection">
+              <option value="up">Up</option>
+              <option value="down">Down</option>
+              <option value="updown">Up / Down</option>
+              <option value="random">Random</option>
+            </select>
+          </div>
+        </div>
+        <div id="arpCustomWrap" class="hidden">
+          <label class="hint">Custom semitones (comma-separated, e.g. 0,3,7,10)</label>
+          <input type="text" id="arpCustomPattern" value="0,4,7,12">
+        </div>
+        <div><label class="hint">Note Division</label>
+          <select id="arpDivision">
+            <option value="4">1/4</option>
+            <option value="8" selected>1/8</option>
+            <option value="16">1/16</option>
+            <option value="8t">1/8 triplet</option>
+            <option value="16t">1/16 triplet</option>
+          </select>
+        </div>
+        <div class="control-header"><span>Gate Length</span><span class="val" id="arpGateVal">70%</span></div>
+        <input type="range" id="arpGate" min="10" max="100" step="5" value="70">
+        <div class="control-header"><span>Grain Source Position</span><span class="val" id="arpPosVal">20%</span></div>
+        <input type="range" id="arpSourcePos" min="0" max="100" step="1" value="20">
+      </div>
+    </div>
+
     <div class="section-label advanced-only hidden">Live Filters (playback only)</div>
     <div class="control-group advanced-only hidden">
       <div class="control-header"><span>Low-Pass Cutoff</span><span class="val" id="lpVal">18000 Hz</span></div>
@@ -496,6 +543,16 @@ const transGainInput = $('transGain');
 
 const freezePosInput = $('freezePos');
 const freezeDurInput = $('freezeDur');
+
+const arpEnabledInput = $('arpEnabled');
+const arpBody = $('arpBody');
+const arpPatternInput = $('arpPattern');
+const arpCustomWrap = $('arpCustomWrap');
+const arpCustomPatternInput = $('arpCustomPattern');
+const arpDirectionInput = $('arpDirection');
+const arpDivisionInput = $('arpDivision');
+const arpGateInput = $('arpGate');
+const arpSourcePosInput = $('arpSourcePos');
 
 const lowpassInput = $('lowpass');
 const highpassInput = $('highpass');
@@ -657,6 +714,10 @@ freezeDurInput.oninput = e => $('freezeDurVal').textContent = `${e.target.value}
 
 multibandEnabledInput.onchange = e => multibandBody.classList.toggle('hidden', !e.target.checked);
 transientEnabledInput.onchange = e => transientBody.classList.toggle('hidden', !e.target.checked);
+arpEnabledInput.onchange = e => arpBody.classList.toggle('hidden', !e.target.checked);
+arpPatternInput.onchange = e => arpCustomWrap.classList.toggle('hidden', e.target.value !== 'custom');
+arpGateInput.oninput = e => { $('arpGateVal').textContent = Math.round(e.target.value) + '%'; };
+arpSourcePosInput.oninput = e => { $('arpPosVal').textContent = Math.round(e.target.value) + '%'; };
 
 trimStartInput.addEventListener('change', () => {
   if (!sourceBuffer) return;
@@ -2191,6 +2252,91 @@ function normalizePeak(channels) {
   for (const c of channels) for (let i = 0; i < c.length; i++) c[i] *= scale;
 }
 
+// ---------------------------------------------------------------------------
+// Arpeggiator — turns a rendered texture into a moving, pitched pattern.
+// Pure resampling (varispeed), no FFT: pitch-shift a fixed source grain up
+// or down by playing it back faster/slower, the way a classic sampler does.
+// That means formants move with pitch (the "chipmunk"/"monster" character),
+// which suits this app's granular/texture aesthetic and keeps grains clean
+// at any length, unlike running the phase-vocoder again on short slices.
+// ---------------------------------------------------------------------------
+function resampleVarispeed(source, srcStart, rate, outLength) {
+  const out = new Float64Array(outLength);
+  for (let i = 0; i < outLength; i++) {
+    const srcPos = srcStart + i * rate;
+    const i0 = Math.floor(srcPos), frac = srcPos - i0;
+    const s0 = (i0 >= 0 && i0 < source.length) ? source[i0] : 0;
+    const s1 = (i0 + 1 >= 0 && i0 + 1 < source.length) ? source[i0 + 1] : 0;
+    out[i] = s0 * (1 - frac) + s1 * frac;
+  }
+  return out;
+}
+
+function getArpDivisionBeats(division) {
+  // fraction of a quarter note (beat) each step occupies
+  switch (division) {
+    case '4': return 1;
+    case '16': return 0.25;
+    case '8t': return (1 / 2) * (2 / 3);
+    case '16t': return (1 / 4) * (2 / 3);
+    default: return 0.5; // '8'
+  }
+}
+
+function getArpPattern() {
+  const raw = arpPatternInput.value === 'custom' ? arpCustomPatternInput.value : arpPatternInput.value;
+  const semis = raw.split(',').map(s => parseFloat(s.trim())).filter(n => Number.isFinite(n));
+  return semis.length ? semis : [0];
+}
+
+function buildArpSequence(pattern, direction) {
+  if (direction === 'down') return pattern.slice().reverse();
+  if (direction === 'updown' && pattern.length > 2) return pattern.concat(pattern.slice(1, -1).reverse());
+  return pattern.slice(); // 'up' and 'random' (random picks per-step below) both start from the plain pattern
+}
+
+// Applies the arpeggiator to already-rendered channels (main+layers mixed,
+// post-normalize). Grabs a short grain from one fixed spot in the source and
+// replays it at a sequence of pitches, one per rhythmic step, looped to fill
+// the original render's duration.
+function applyArpeggiator(channels, sampleRate) {
+  const bpm = parseFloat(bpmInput.value) || 120;
+  const stepBeats = getArpDivisionBeats(arpDivisionInput.value);
+  const stepSeconds = stepBeats * (60 / bpm);
+  const stepSamples = Math.max(4, Math.round(stepSeconds * sampleRate));
+  const gatePercent = parseFloat(arpGateInput.value) / 100;
+  const gateSamples = Math.max(4, Math.round(stepSamples * gatePercent));
+  const fadeSamples = Math.max(1, Math.min(Math.round(sampleRate * 0.008), Math.floor(gateSamples / 2)));
+
+  const pattern = getArpPattern();
+  const direction = arpDirectionInput.value;
+  const sequence = buildArpSequence(pattern, direction);
+
+  const srcLen = channels[0].length;
+  const srcStart = Math.floor(srcLen * (parseFloat(arpSourcePosInput.value) / 100));
+
+  const numSteps = Math.max(1, Math.ceil(srcLen / stepSamples));
+  const outLen = numSteps * stepSamples;
+  const outChannels = channels.map(() => new Float64Array(outLen));
+
+  for (let step = 0; step < numSteps; step++) {
+    const semis = direction === 'random'
+      ? pattern[Math.floor(Math.random() * pattern.length)]
+      : sequence[step % sequence.length];
+    const pitchRatio = Math.pow(2, semis / 12);
+    const outStart = step * stepSamples;
+    for (let c = 0; c < channels.length; c++) {
+      const grain = resampleVarispeed(channels[c], srcStart, pitchRatio, gateSamples);
+      for (let i = 0; i < fadeSamples; i++) {
+        grain[i] *= i / fadeSamples;
+        grain[gateSamples - 1 - i] *= i / fadeSamples;
+      }
+      for (let i = 0; i < gateSamples; i++) outChannels[c][outStart + i] = grain[i];
+    }
+  }
+  return outChannels.map(c => Float32Array.from(c));
+}
+
 freezeBtn.onclick = async () => {
   if (!sourceBuffer) return;
   initAudioContext();
@@ -2261,12 +2407,13 @@ function reportProgress(stepIndex, total, p, label) {
 }
 
 function finishRender(outChannels, sr) {
+  if (arpEnabledInput.checked) outChannels = applyArpeggiator(outChannels, sr);
   stretchedChannels = outChannels;
   stretchedSampleRate = sr;
   drawWaveform(outputCanvas, outCtx, stretchedChannels[0], '#ec4899');
   renderOutputRuler();
   progressWrap.classList.remove('active');
-  statusDisplay.textContent = 'Rendered';
+  statusDisplay.textContent = arpEnabledInput.checked ? 'Rendered (arpeggiated)' : 'Rendered';
   processBtn.disabled = false; freezeBtn.disabled = false; playBtn.disabled = false; downloadBtn.disabled = false; previewBtn.disabled = false;
 }
 
