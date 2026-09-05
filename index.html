@@ -664,7 +664,7 @@
     <div class="control-group advanced-only hidden">
       <div class="checkbox-row"><input type="checkbox" id="arpEnabled"><label for="arpEnabled">Turn the render into a pitched arpeggio</label></div>
       <button type="button" class="file-btn secondary" id="exportMidiBtn" style="width:100%; text-align:center; margin-top:8px;">Export Pattern as MIDI</button>
-      <div class="hint">Exports a multi-track .mid: the main pattern below, plus a separate track for every layer with its own arpeggiator enabled — each looped to fill the Bars/BPM from the Tempo Sync Calculator, and generated even if the arpeggiator above isn't currently enabled. "Random" direction exports as its plain up-order pattern.</div>
+      <div class="hint">Exports a multi-track .mid: the main pattern below, plus a separate track for every layer using its own root/pattern/direction — included whether or not that layer's arpeggiator is currently toggled on for audio. Each track loops to fill the Bars/BPM from the Tempo Sync Calculator above. "Random" direction exports as its plain up-order pattern.</div>
       <div class="collapsible-body hidden" id="arpBody">
         <div class="hint">Re-pitches short grains pulled from one spot in the rendered texture into a repeating pattern. Runs on whatever you render next — the regular stretch or Freeze. Uses the BPM from the Tempo Sync Calculator above.</div>
         <div class="two-col">
@@ -3409,10 +3409,12 @@ function buildArpMidiBytes() {
     gatePercent: Math.max(0.05, Math.min(1, parseFloat(arpGateInput.value) / 100)),
     ticksPerBeat, totalTicks, channel: 0, name: 'Main'
   }));
-  // Every layer with its own arpeggiator enabled gets its own track/channel.
+  // Every layer gets its own track/channel, using its own root/pattern/
+  // direction/division/gate — included regardless of whether that layer's
+  // arpeggiator is currently toggled on for audio, same as Main above, so
+  // the exported file always reflects the full composition.
   let ch = 1;
   layers.forEach((layer, idx) => {
-    if (!layer.arpEnabled) return;
     if (ch === 9) ch++; // skip GM channel 10 (reserved for drums in many DAWs)
     noteTracks.push(buildArpTrackBytes({
       pattern: getLayerArpPattern(layer),
@@ -3428,17 +3430,42 @@ function buildArpMidiBytes() {
   const header = [0x4D, 0x54, 0x68, 0x64, 0, 0, 0, 6, 0, 1, (allTracks.length >> 8) & 0xff, allTracks.length & 0xff, (ticksPerBeat >> 8) & 0xff, ticksPerBeat & 0xff];
   return new Uint8Array([...header, ...allTracks.flat()]);
 }
+let midiExportBusy = false;
 function downloadArpMidi() {
-  const bytes = buildArpMidiBytes();
-  const blob = new Blob([bytes], { type: 'audio/midi' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'wavstretch_arp_pattern.mid';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 2000);
+  // Guard against rapid double-taps: with no busy state, two quick taps fire
+  // two overlapping exports/share-sheets, which is what produced duplicate
+  // imported clips and made the page feel stuck waiting on two handoffs at
+  // once.
+  if (midiExportBusy) return;
+  midiExportBusy = true;
+  exportMidiBtn.disabled = true;
+  const prevLabel = exportMidiBtn.textContent;
+  exportMidiBtn.textContent = 'Exporting…';
+  try {
+    const bytes = buildArpMidiBytes();
+    const blob = new Blob([bytes], { type: 'audio/midi' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'wavstretch_arp_patterns.mid';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    // Don't revoke right away: on mobile, tapping this often opens an OS
+    // "Open in…"/share sheet that reads the blob asynchronously and can take
+    // a while, especially when handing off to another app. Revoking within a
+    // couple seconds can pull the file out from under that handoff. The file
+    // is a few hundred bytes, so keeping the URL alive longer costs nothing.
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } catch (err) {
+    console.error('MIDI export failed:', err);
+    statusDisplay.textContent = 'MIDI Export Failed';
+    setTimeout(() => { statusDisplay.textContent = sourceBuffer ? 'Ready' : 'Idle'; }, 3000);
+  } finally {
+    exportMidiBtn.disabled = false;
+    exportMidiBtn.textContent = prevLabel;
+    midiExportBusy = false;
+  }
 }
 
 // Applies the arpeggiator to already-rendered channels (main+layers mixed,
