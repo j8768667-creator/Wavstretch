@@ -663,6 +663,8 @@
     <div class="section-label advanced-only hidden">Arpeggiator <span class="badge">movement</span></div>
     <div class="control-group advanced-only hidden">
       <div class="checkbox-row"><input type="checkbox" id="arpEnabled"><label for="arpEnabled">Turn the render into a pitched arpeggio</label></div>
+      <button type="button" class="file-btn secondary" id="exportMidiBtn" style="width:100%; text-align:center; margin-top:8px;">Export Pattern as MIDI</button>
+      <div class="hint">Exports the pattern/direction/division/gate below as a one-bar-cycle .mid file (using the BPM from the Tempo Sync Calculator) so you can reuse the melody in a DAW — works even if the arpeggiator above isn't enabled. "Random" direction exports as its plain up-order pattern.</div>
       <div class="collapsible-body hidden" id="arpBody">
         <div class="hint">Re-pitches short grains pulled from one spot in the rendered texture into a repeating pattern. Runs on whatever you render next — the regular stretch or Freeze. Uses the BPM from the Tempo Sync Calculator above.</div>
         <div class="two-col">
@@ -704,8 +706,6 @@
         <input type="range" id="arpGate" min="10" max="100" step="5" value="70">
         <div class="control-header"><span>Grain Source Position</span><span class="val" id="arpPosVal">20%</span></div>
         <input type="range" id="arpSourcePos" min="0" max="100" step="1" value="20">
-        <button type="button" class="file-btn secondary" id="exportMidiBtn" style="width:100%; text-align:center; margin-top:4px;">Export Pattern as MIDI</button>
-        <div class="hint">Exports the pattern/direction/division/gate above as a one-bar-cycle .mid file (using the BPM from the Tempo Sync Calculator) so you can reuse the melody in a DAW. "Random" direction exports as its plain up-order pattern.</div>
       </div>
     </div>
 
