@@ -663,8 +663,8 @@
     <div class="section-label advanced-only hidden">Arpeggiator <span class="badge">movement</span></div>
     <div class="control-group advanced-only hidden">
       <div class="checkbox-row"><input type="checkbox" id="arpEnabled"><label for="arpEnabled">Turn the render into a pitched arpeggio</label></div>
-      <button type="button" class="file-btn secondary" id="exportMidiBtn" style="width:100%; text-align:center; margin-top:8px;">Export Pattern as MIDI</button>
-      <div class="hint">Exports a multi-track .mid: the main pattern below, plus a separate track for every layer using its own root/pattern/direction — included whether or not that layer's arpeggiator is currently toggled on for audio. Each track loops to fill the Bars/BPM from the Tempo Sync Calculator above. "Random" direction exports as its plain up-order pattern.</div>
+      <button type="button" class="file-btn secondary" id="exportMidiBtn" style="width:100%; text-align:center; margin-top:8px;">Export Patterns as MIDI (.zip)</button>
+      <div class="hint">Downloads a .zip with one self-contained .mid file per pattern: the main one below, plus a separate file for every layer using its own root/pattern/direction — included whether or not that layer's arpeggiator is currently toggled on for audio. Separate files (rather than one multi-track file) because several mobile DAWs only import the first track from a multi-track MIDI file and silently drop the rest. Each file loops to fill the Bars/BPM from the Tempo Sync Calculator above. "Random" direction exports as its plain up-order pattern.</div>
       <div class="collapsible-body hidden" id="arpBody">
         <div class="hint">Re-pitches short grains pulled from one spot in the rendered texture into a repeating pattern. Runs on whatever you render next — the regular stretch or Freeze. Uses the BPM from the Tempo Sync Calculator above.</div>
         <div class="two-col">
@@ -3325,13 +3325,20 @@ function buildArpSequence(pattern, direction) {
 }
 
 // ---------------------------------------------------------------------------
-// MIDI export — writes every active arpeggiator (the main one, plus any
-// layer with its own arp enabled) out as a Standard MIDI File, format 1:
-// one tempo/meta track, then one note track per pattern, each on its own
-// channel. Each track loops its pattern to fill the "Bars" length from the
-// Tempo Sync Calculator above (so it matches how long you're targeting the
-// render to be, not just one bare cycle). "Random" direction can't be
-// captured deterministically, so it exports using the plain pattern order.
+// MIDI export — writes every arpeggiator (the main one, plus every layer
+// with its own pattern) out as separate, self-contained single-track
+// Standard MIDI Files, packaged together in one .zip.
+//
+// An earlier version of this wrote one multi-track (Format 1) .mid file
+// instead. That file was byte-for-byte correct — verified by parsing it back
+// and confirming every track carried its own note events — but several
+// mobile/iOS DAWs only import the first track from a multi-track MIDI file
+// and silently drop the rest, or merge everything into a single track's
+// stacked regions on import. Since we can't control how a given DAW's
+// importer handles Format 1, the reliable fix is to sidestep multi-track
+// import entirely: one plain Format-0 file per pattern, each importable on
+// its own. "Random" direction can't be captured deterministically, so it
+// exports using the plain pattern order.
 // ---------------------------------------------------------------------------
 function encodeMidiVLQ(value) {
   const bytes = [value & 0x7f];
@@ -3352,22 +3359,15 @@ function wrapMTrk(trackBytes) {
   const len = trackBytes.length;
   return [0x4D, 0x54, 0x72, 0x6B, (len >>> 24) & 0xff, (len >>> 16) & 0xff, (len >>> 8) & 0xff, len & 0xff, ...trackBytes];
 }
-function buildTempoTrackBytes(bpm) {
-  const trackBytes = [];
-  const microsPerBeat = Math.round(60000000 / bpm);
-  const nameBytes = midiTextBytes('WavStretch');
-  trackBytes.push(...encodeMidiVLQ(0), 0xFF, 0x03, nameBytes.length, ...nameBytes);
-  trackBytes.push(...encodeMidiVLQ(0), 0xFF, 0x51, 0x03, (microsPerBeat >> 16) & 0xff, (microsPerBeat >> 8) & 0xff, microsPerBeat & 0xff);
-  trackBytes.push(...encodeMidiVLQ(0), 0xFF, 0x2F, 0x00);
-  return wrapMTrk(trackBytes);
-}
-// Builds one MTrk chunk for a single pattern, looping it until totalTicks is
-// filled (rather than just one pass), on the given MIDI channel.
-function buildArpTrackBytes({ pattern, direction, stepBeats, gatePercent, ticksPerBeat, totalTicks, channel, name }) {
+// Builds one complete, self-contained Format-0 .mid file for a single
+// pattern: track-name + tempo + notes all in its own MTrk, looping the
+// pattern until totalTicks is filled.
+function buildSingleTrackMidiFile({ pattern, direction, stepBeats, gatePercent, bpm, ticksPerBeat, totalTicks, name }) {
   const stepTicks = Math.max(1, Math.round(stepBeats * ticksPerBeat));
   const gateTicks = Math.max(1, Math.min(stepTicks - 1, Math.round(stepTicks * gatePercent)));
   const sequence = direction === 'random' ? pattern.slice() : buildArpSequence(pattern, direction);
-  const baseNote = 60; // C4 root; the pattern's semitone offsets are relative to this
+  const baseNote = 60; // C4 root; the pattern's semitone offsets (incl. any layer root/octave) are relative to this
+
   const events = [];
   let step = 0;
   while (step * stepTicks < totalTicks && step < 4096) { // hard cap guards against pathological tiny divisions
@@ -3375,8 +3375,8 @@ function buildArpTrackBytes({ pattern, direction, stepBeats, gatePercent, ticksP
     const note = Math.max(0, Math.min(127, baseNote + Math.round(semi)));
     const onTick = step * stepTicks;
     const offTick = Math.min(totalTicks, onTick + gateTicks);
-    events.push({ tick: onTick, bytes: [0x90 | channel, note, 100] });
-    events.push({ tick: offTick, bytes: [0x80 | channel, note, 0] });
+    events.push({ tick: onTick, bytes: [0x90, note, 100] });
+    events.push({ tick: offTick, bytes: [0x80, note, 0] });
     step++;
   }
   events.sort((a, b) => a.tick - b.tick);
@@ -3384,51 +3384,134 @@ function buildArpTrackBytes({ pattern, direction, stepBeats, gatePercent, ticksP
   const trackBytes = [];
   const nameBytes = midiTextBytes(name);
   trackBytes.push(...encodeMidiVLQ(0), 0xFF, 0x03, nameBytes.length, ...nameBytes);
+  const microsPerBeat = Math.round(60000000 / bpm);
+  trackBytes.push(...encodeMidiVLQ(0), 0xFF, 0x51, 0x03, (microsPerBeat >> 16) & 0xff, (microsPerBeat >> 8) & 0xff, microsPerBeat & 0xff);
   let lastTick = 0;
   for (const ev of events) {
     trackBytes.push(...encodeMidiVLQ(ev.tick - lastTick), ...ev.bytes);
     lastTick = ev.tick;
   }
   trackBytes.push(...encodeMidiVLQ(0), 0xFF, 0x2F, 0x00);
-  return wrapMTrk(trackBytes);
+
+  const track = wrapMTrk(trackBytes);
+  const header = [0x4D, 0x54, 0x68, 0x64, 0, 0, 0, 6, 0, 0, 0, 1, (ticksPerBeat >> 8) & 0xff, ticksPerBeat & 0xff];
+  return Uint8Array.from([...header, ...track]);
 }
-function buildArpMidiBytes() {
+function safeMidiFileName(name) {
+  const cleaned = (name || 'track').replace(/\.[^./]+$/, '').replace(/[^a-z0-9_\- ]/gi, '_').trim().slice(0, 40);
+  return cleaned || 'track';
+}
+// ---- Minimal ZIP writer (STORE method, no compression — files are tiny) ---
+function crc32(bytes) {
+  if (!crc32.table) {
+    const table = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+      table[n] = c >>> 0;
+    }
+    crc32.table = table;
+  }
+  let crc = 0xFFFFFFFF;
+  for (let i = 0; i < bytes.length; i++) crc = crc32.table[(crc ^ bytes[i]) & 0xFF] ^ (crc >>> 8);
+  return (crc ^ 0xFFFFFFFF) >>> 0;
+}
+function buildZip(files) {
+  const localParts = [], centralParts = [];
+  let offset = 0;
+  for (const f of files) {
+    const nameBytes = Uint8Array.from(midiTextBytes(f.name));
+    const crc = crc32(f.bytes);
+    const size = f.bytes.length;
+
+    const local = new Uint8Array(30 + nameBytes.length);
+    const ldv = new DataView(local.buffer);
+    ldv.setUint32(0, 0x04034b50, true);
+    ldv.setUint16(4, 20, true);
+    ldv.setUint16(6, 0, true);
+    ldv.setUint16(8, 0, true); // method: store
+    ldv.setUint16(10, 0, true);
+    ldv.setUint16(12, 0x21, true);
+    ldv.setUint32(14, crc, true);
+    ldv.setUint32(18, size, true);
+    ldv.setUint32(22, size, true);
+    ldv.setUint16(26, nameBytes.length, true);
+    ldv.setUint16(28, 0, true);
+    local.set(nameBytes, 30);
+    localParts.push(local, f.bytes);
+
+    const central = new Uint8Array(46 + nameBytes.length);
+    const cdv = new DataView(central.buffer);
+    cdv.setUint32(0, 0x02014b50, true);
+    cdv.setUint16(4, 20, true);
+    cdv.setUint16(6, 20, true);
+    cdv.setUint16(8, 0, true);
+    cdv.setUint16(10, 0, true);
+    cdv.setUint16(12, 0, true);
+    cdv.setUint16(14, 0x21, true);
+    cdv.setUint32(16, crc, true);
+    cdv.setUint32(20, size, true);
+    cdv.setUint32(24, size, true);
+    cdv.setUint16(28, nameBytes.length, true);
+    cdv.setUint32(42, offset, true);
+    central.set(nameBytes, 46);
+    centralParts.push(central);
+
+    offset += local.length + f.bytes.length;
+  }
+  const centralStart = offset;
+  const centralSize = centralParts.reduce((n, c) => n + c.length, 0);
+  const end = new Uint8Array(22);
+  const edv = new DataView(end.buffer);
+  edv.setUint32(0, 0x06054b50, true);
+  edv.setUint16(8, files.length, true);
+  edv.setUint16(10, files.length, true);
+  edv.setUint32(12, centralSize, true);
+  edv.setUint32(16, centralStart, true);
+
+  const out = new Uint8Array(centralStart + centralSize + end.length);
+  let p = 0;
+  for (const part of localParts) { out.set(part, p); p += part.length; }
+  for (const part of centralParts) { out.set(part, p); p += part.length; }
+  out.set(end, p);
+  return out;
+}
+function buildArpMidiZipBytes() {
   const bpm = parseFloat(bpmInput.value) || 120;
   const beatsPerBar = parseInt(beatsPerBarInput.value, 10) || 4;
   const bars = Math.max(1, parseInt(targetBarsInput.value, 10) || 4);
   const ticksPerBeat = 480;
   const totalTicks = beatsPerBar * bars * ticksPerBeat;
 
-  const noteTracks = [];
-  // Main arpeggiator — always included as a reference pattern, regardless of
-  // whether it's currently toggled on for audio rendering.
-  noteTracks.push(buildArpTrackBytes({
-    pattern: getArpPattern(),
-    direction: arpDirectionInput.value,
-    stepBeats: getArpDivisionBeats(arpDivisionInput.value),
-    gatePercent: Math.max(0.05, Math.min(1, parseFloat(arpGateInput.value) / 100)),
-    ticksPerBeat, totalTicks, channel: 0, name: 'Main'
-  }));
-  // Every layer gets its own track/channel, using its own root/pattern/
-  // direction/division/gate — included regardless of whether that layer's
-  // arpeggiator is currently toggled on for audio, same as Main above, so
-  // the exported file always reflects the full composition.
-  let ch = 1;
+  const files = [{
+    name: 'Main.mid',
+    bytes: buildSingleTrackMidiFile({
+      pattern: getArpPattern(), direction: arpDirectionInput.value,
+      stepBeats: getArpDivisionBeats(arpDivisionInput.value),
+      gatePercent: Math.max(0.05, Math.min(1, parseFloat(arpGateInput.value) / 100)),
+      bpm, ticksPerBeat, totalTicks, name: 'Main'
+    })
+  }];
+  // Every layer gets its own file, using its own root/pattern/direction/
+  // division/gate — included regardless of whether that layer's arpeggiator
+  // is currently toggled on for audio, so the export always reflects the
+  // full composition, not just what's currently playing back.
+  const usedNames = new Set(['main']);
   layers.forEach((layer, idx) => {
-    if (ch === 9) ch++; // skip GM channel 10 (reserved for drums in many DAWs)
-    noteTracks.push(buildArpTrackBytes({
-      pattern: getLayerArpPattern(layer),
-      direction: layer.arpDirection || 'up',
-      stepBeats: getArpDivisionBeats(layer.arpDivision || '8'),
-      gatePercent: Math.max(0.05, Math.min(1, (layer.arpGate == null ? 70 : layer.arpGate) / 100)),
-      ticksPerBeat, totalTicks, channel: ch % 16, name: layer.name || `Layer ${idx + 1}`
-    }));
-    ch++;
+    let fname = safeMidiFileName(layer.name || `Layer ${idx + 1}`), n = 2;
+    while (usedNames.has(fname.toLowerCase())) fname = `${fname}_${n++}`;
+    usedNames.add(fname.toLowerCase());
+    files.push({
+      name: `${fname}.mid`,
+      bytes: buildSingleTrackMidiFile({
+        pattern: getLayerArpPattern(layer), direction: layer.arpDirection || 'up',
+        stepBeats: getArpDivisionBeats(layer.arpDivision || '8'),
+        gatePercent: Math.max(0.05, Math.min(1, (layer.arpGate == null ? 70 : layer.arpGate) / 100)),
+        bpm, ticksPerBeat, totalTicks, name: fname
+      })
+    });
   });
-
-  const allTracks = [buildTempoTrackBytes(bpm), ...noteTracks];
-  const header = [0x4D, 0x54, 0x68, 0x64, 0, 0, 0, 6, 0, 1, (allTracks.length >> 8) & 0xff, allTracks.length & 0xff, (ticksPerBeat >> 8) & 0xff, ticksPerBeat & 0xff];
-  return new Uint8Array([...header, ...allTracks.flat()]);
+  return buildZip(files);
 }
 let midiExportBusy = false;
 function downloadArpMidi() {
@@ -3442,12 +3525,12 @@ function downloadArpMidi() {
   const prevLabel = exportMidiBtn.textContent;
   exportMidiBtn.textContent = 'Exporting…';
   try {
-    const bytes = buildArpMidiBytes();
-    const blob = new Blob([bytes], { type: 'audio/midi' });
+    const bytes = buildArpMidiZipBytes();
+    const blob = new Blob([bytes], { type: 'application/zip' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'wavstretch_arp_patterns.mid';
+    a.download = 'wavstretch_arp_patterns.zip';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
