@@ -551,23 +551,59 @@
       <div class="checkbox-row"><input type="checkbox" id="stereoWiden" checked><label for="stereoWiden">Process channels independently (stereo widen)</label></div>
     </div>
 
-    <div class="section-label advanced-only hidden">Window Morphing <span class="badge">LFO</span></div>
+    <div class="section-label advanced-only hidden">LFO Modulation <span class="badge">movement</span></div>
     <div class="control-group advanced-only hidden">
-      <div class="checkbox-row"><input type="checkbox" id="morphEnabled"><label for="morphEnabled">Morph between two window shapes over time</label></div>
-      <div class="two-col">
-        <div>
-          <label class="hint">Window B</label>
-          <select id="windowTypeB">
-            <option value="hann">Hann</option>
-            <option value="hamming">Hamming</option>
-            <option value="blackman" selected>Blackman</option>
-            <option value="gaussian">Gaussian</option>
-          </select>
+      <div class="checkbox-row"><input type="checkbox" id="lfoEnabled"><label for="lfoEnabled">Modulate a parameter with a slow LFO over the render</label></div>
+      <div class="collapsible-body hidden" id="lfoBody">
+        <div class="two-col">
+          <div>
+            <label class="hint">Target</label>
+            <select id="lfoTarget">
+              <option value="windowBlend">Window Blend (A ↔ B)</option>
+              <option value="formant">Formant Shift</option>
+              <option value="stereoWidth">Stereo Width</option>
+            </select>
+          </div>
+          <div>
+            <label class="hint">Shape</label>
+            <select id="lfoShape">
+              <option value="sine">Sine</option>
+              <option value="triangle">Triangle</option>
+              <option value="square">Square</option>
+              <option value="random">Random (S&amp;H)</option>
+            </select>
+          </div>
         </div>
-        <div>
-          <label class="hint">Morph Rate (Hz)</label>
-          <input type="range" id="morphRate" min="0.02" max="2" step="0.01" value="0.15">
+        <div class="two-col" id="lfoWindowBRow">
+          <div>
+            <label class="hint">Window B (blend target)</label>
+            <select id="windowTypeB">
+              <option value="hann">Hann</option>
+              <option value="hamming">Hamming</option>
+              <option value="blackman" selected>Blackman</option>
+              <option value="gaussian">Gaussian</option>
+            </select>
+          </div>
         </div>
+        <div class="control-header"><span>Rate</span><span class="val" id="lfoRateVal">0.15 Hz</span></div>
+        <input type="range" id="lfoRate" min="0.02" max="2" step="0.01" value="0.15">
+        <div class="control-header"><span>Depth</span><span class="val" id="lfoDepthVal">100%</span></div>
+        <input type="range" id="lfoDepth" min="0" max="100" step="1" value="100">
+        <div class="hint">Sweeps the chosen parameter over the length of the render — good for evolving pads instead of a static texture. Window Blend &amp; Formant are baked into the render; Stereo Width modulates the final stereo image.</div>
+      </div>
+    </div>
+
+    <div class="section-label advanced-only hidden">Granular Scatter <span class="badge">humanize</span></div>
+    <div class="control-group advanced-only hidden">
+      <div class="checkbox-row"><input type="checkbox" id="scatterEnabled"><label for="scatterEnabled">Randomize grain position, pitch &amp; gain</label></div>
+      <div class="collapsible-body hidden" id="scatterBody">
+        <div class="control-header"><span>Position Jitter</span><span class="val" id="scatterPosVal">0 ms</span></div>
+        <input type="range" id="scatterPos" min="0" max="50" step="1" value="0">
+        <div class="control-header"><span>Pitch Jitter</span><span class="val" id="scatterPitchVal">0 cents</span></div>
+        <input type="range" id="scatterPitch" min="0" max="100" step="1" value="0">
+        <div class="control-header"><span>Gain Jitter</span><span class="val" id="scatterGainVal">0 dB</span></div>
+        <input type="range" id="scatterGain" min="0" max="12" step="0.5" value="0">
+        <div class="hint">Adds organic, per-grain randomization on top of the stretch — small amounts add life, large amounts add glitchy chaos.</div>
       </div>
     </div>
 
@@ -668,6 +704,8 @@
         <input type="range" id="arpGate" min="10" max="100" step="5" value="70">
         <div class="control-header"><span>Grain Source Position</span><span class="val" id="arpPosVal">20%</span></div>
         <input type="range" id="arpSourcePos" min="0" max="100" step="1" value="20">
+        <button type="button" class="file-btn secondary" id="exportMidiBtn" style="width:100%; text-align:center; margin-top:4px;">Export Pattern as MIDI</button>
+        <div class="hint">Exports the pattern/direction/division/gate above as a one-bar-cycle .mid file (using the BPM from the Tempo Sync Calculator) so you can reuse the melody in a DAW. "Random" direction exports as its plain up-order pattern.</div>
       </div>
     </div>
 
@@ -758,9 +796,22 @@ const stereoWidenInput = $('stereoWiden');
 const trimStartInput = $('trimStart');
 const trimEndInput = $('trimEnd');
 
-const morphEnabledInput = $('morphEnabled');
+const lfoEnabledInput = $('lfoEnabled');
+const lfoBody = $('lfoBody');
+const lfoTargetInput = $('lfoTarget');
+const lfoShapeInput = $('lfoShape');
+const lfoRateInput = $('lfoRate');
+const lfoDepthInput = $('lfoDepth');
 const windowTypeBInput = $('windowTypeB');
-const morphRateInput = $('morphRate');
+const lfoWindowBRow = $('lfoWindowBRow');
+
+const scatterEnabledInput = $('scatterEnabled');
+const scatterBody = $('scatterBody');
+const scatterPosInput = $('scatterPos');
+const scatterPitchInput = $('scatterPitch');
+const scatterGainInput = $('scatterGain');
+
+const exportMidiBtn = $('exportMidiBtn');
 
 const eqLowInput = $('eqLow'), eqMidInput = $('eqMid'), eqHighInput = $('eqHigh');
 const eqXover1Input = $('eqXover1'), eqXover2Input = $('eqXover2');
@@ -1203,9 +1254,17 @@ transSensInput.oninput = e => $('transSensVal').textContent = `${Math.round(e.ta
 transGainInput.oninput = e => $('transGainVal').textContent = `${Math.round(e.target.value * 100)}%`;
 freezePosInput.oninput = e => $('freezePosVal').textContent = `${e.target.value}%`;
 freezeDurInput.oninput = e => $('freezeDurVal').textContent = `${e.target.value}s`;
+lfoRateInput.oninput = e => $('lfoRateVal').textContent = `${parseFloat(e.target.value).toFixed(2)} Hz`;
+lfoDepthInput.oninput = e => $('lfoDepthVal').textContent = `${Math.round(e.target.value)}%`;
+lfoTargetInput.onchange = e => lfoWindowBRow.classList.toggle('hidden', e.target.value !== 'windowBlend');
+scatterPosInput.oninput = e => $('scatterPosVal').textContent = `${e.target.value} ms`;
+scatterPitchInput.oninput = e => $('scatterPitchVal').textContent = `${e.target.value} cents`;
+scatterGainInput.oninput = e => $('scatterGainVal').textContent = `${e.target.value} dB`;
 
 multibandEnabledInput.onchange = e => multibandBody.classList.toggle('hidden', !e.target.checked);
 transientEnabledInput.onchange = e => transientBody.classList.toggle('hidden', !e.target.checked);
+lfoEnabledInput.onchange = e => lfoBody.classList.toggle('hidden', !e.target.checked);
+scatterEnabledInput.onchange = e => scatterBody.classList.toggle('hidden', !e.target.checked);
 arpEnabledInput.onchange = e => arpBody.classList.toggle('hidden', !e.target.checked);
 arpPatternInput.onchange = e => arpCustomWrap.classList.toggle('hidden', e.target.value !== 'custom');
 arpGateInput.oninput = e => { $('arpGateVal').textContent = Math.round(e.target.value) + '%'; };
@@ -1335,7 +1394,8 @@ const PRESETABLE_IDS = [
   'eqLow', 'eqMid', 'eqHigh', 'eqXover1', 'eqXover2',
   'multibandEnabled', 'mbXover1', 'mbXover2', 'mbLowStretch', 'mbMidStretch', 'mbHighStretch',
   'freezePos', 'freezeDur',
-  'morphEnabled', 'windowTypeB', 'morphRate',
+  'lfoEnabled', 'lfoTarget', 'lfoShape', 'lfoRate', 'lfoDepth', 'windowTypeB',
+  'scatterEnabled', 'scatterPos', 'scatterPitch', 'scatterGain',
   'arpEnabled', 'arpPattern', 'arpCustomPattern', 'arpDirection', 'arpDivision', 'arpGate', 'arpSourcePos',
   'lowpass', 'highpass', 'reverb', 'volume',
   'fxMasterEnabled', 'fxPresetSelect',
@@ -2591,8 +2651,34 @@ function makeEqGainFn(lowDb, midDb, highDb, xover1, xover2) {
     return highLin;
   };
 }
+// Deterministic pseudo-random in [0,1), seeded by a number — used for the
+// "random (S&H)" LFO shape and grain scatter jitter so results are
+// reproducible from the same seed without needing persistent RNG state.
+function pseudoRandom(seed) {
+  const x = Math.sin(seed * 12.9898) * 43758.5453;
+  return x - Math.floor(x);
+}
+// General-purpose LFO sampler: returns a value in [-1, 1] for shape/rate at
+// time t (seconds). Shared by window-blend, formant and stereo-width
+// modulation targets.
+function lfoValue(shape, rateHz, t) {
+  const phase = ((t * rateHz) % 1 + 1) % 1; // wrap to [0,1)
+  if (shape === 'triangle') return 2 * Math.abs(2 * (phase - Math.floor(phase + 0.5))) - 1;
+  if (shape === 'square') return phase < 0.5 ? 1 : -1;
+  if (shape === 'random') return pseudoRandom(Math.floor(t * rateHz)) * 2 - 1;
+  return Math.sin(2 * Math.PI * rateHz * t); // sine (default)
+}
 async function stretchBuffer(input, sampleRate, opts, onProgress) {
-  const { stretch, windowSize, windowType, windowTypeB, morphEnabled, morphRateHz, phaseAmount, formantShift, eqGainFn } = opts;
+  const {
+    stretch, windowSize, windowType, windowTypeB, phaseAmount, formantShift, eqGainFn,
+    lfoEnabled, lfoTarget, lfoShape, lfoRateHz, lfoDepth,
+    scatterEnabled, scatterPosMs, scatterPitchCents, scatterGainDb
+  } = opts;
+  const lfoActive = !!lfoEnabled && lfoDepth > 0;
+  const modulatesWindow = lfoActive && lfoTarget === 'windowBlend';
+  const modulatesFormant = lfoActive && lfoTarget === 'formant';
+  const scatterActive = !!scatterEnabled && (scatterPosMs > 0 || scatterPitchCents > 0 || scatterGainDb > 0);
+  const scatterPosSamples = scatterActive ? (scatterPosMs || 0) / 1000 * sampleRate : 0;
 
   // Exact passthrough: any STFT analysis/resynthesis (even at 1x stretch)
   // introduces small windowing artifacts, because the same window is applied
@@ -2601,14 +2687,14 @@ async function stretchBuffer(input, sampleRate, opts, onProgress) {
   // formant shift, no phase randomization, and EQ is flat — skip the whole
   // pipeline and hand back the original samples untouched.
   const eqIsFlat = !eqGainFn || [20, 200, 1000, 5000, 15000].every(f => Math.abs(eqGainFn(f) - 1) < 1e-9);
-  if (!morphEnabled && Math.abs(stretch - 1) < 1e-6 && formantShift === 1 && phaseAmount === 0 && eqIsFlat) {
+  if (!modulatesWindow && !modulatesFormant && !scatterActive && Math.abs(stretch - 1) < 1e-6 && formantShift === 1 && phaseAmount === 0 && eqIsFlat) {
     onProgress(1);
     const result = new Float32Array(input.length);
     result.set(input);
     return result;
   }
   const winA = generateWindow(windowType, windowSize);
-  const winB = morphEnabled ? generateWindow(windowTypeB, windowSize) : null;
+  const winB = modulatesWindow ? generateWindow(windowTypeB, windowSize) : null;
   const half = windowSize / 2;
   const hopOut = half;
   const hopIn = hopOut / stretch;
@@ -2624,16 +2710,25 @@ async function stretchBuffer(input, sampleRate, opts, onProgress) {
   let win = winA;
   let inputPos = 0, frame = 0, lastMsg = Date.now();
   while (inputPos < input.length) {
-    if (morphEnabled) {
-      const t = frame * (hopOut / sampleRate);
-      const blend = 0.5 + 0.5 * Math.sin(2 * Math.PI * morphRateHz * t);
+    const t = frame * (hopOut / sampleRate);
+    if (modulatesWindow) {
+      const lfo = lfoValue(lfoShape, lfoRateHz, t);
+      const blend = Math.max(0, Math.min(1, 0.5 + 0.5 * lfoDepth * lfo));
       win = new Float64Array(windowSize);
       for (let i = 0; i < windowSize; i++) win[i] = winA[i] * (1 - blend) + winB[i] * blend;
     }
-    const start = Math.floor(inputPos);
+    let frameFormant = formantShift;
+    if (modulatesFormant) {
+      const lfo = lfoValue(lfoShape, lfoRateHz, t);
+      frameFormant = Math.max(0.25, formantShift * (1 + 0.5 * lfoDepth * lfo));
+    }
+    let start = Math.floor(inputPos);
+    if (scatterActive && scatterPosSamples > 0) {
+      start += Math.round((Math.random() * 2 - 1) * scatterPosSamples);
+    }
     for (let i = 0; i < windowSize; i++) {
       const idx = start + i;
-      real[i] = (idx < input.length ? input[idx] : 0) * win[i];
+      real[i] = (idx >= 0 && idx < input.length ? input[idx] : 0) * win[i];
       imag[i] = 0;
     }
     fft.forward(real, imag);
@@ -2642,9 +2737,17 @@ async function stretchBuffer(input, sampleRate, opts, onProgress) {
       if (eqGainFn) mag *= eqGainFn(i * sampleRate / windowSize);
       magArr[i] = mag;
     }
-    if (formantShift !== 1) {
+    // Grain pitch jitter (scatter) rides on top of the formant/LFO remap
+    // ratio for this frame — both are frequency-bin remaps, so they combine
+    // into a single resample pass.
+    let remapRatio = frameFormant;
+    if (scatterActive && scatterPitchCents > 0) {
+      const jitterCents = (Math.random() * 2 - 1) * scatterPitchCents;
+      remapRatio *= Math.pow(2, jitterCents / 1200);
+    }
+    if (Math.abs(remapRatio - 1) > 1e-6) {
       for (let i = 0; i <= half; i++) {
-        const srcIdx = i / formantShift;
+        const srcIdx = i / remapRatio;
         const i0 = Math.floor(srcIdx), i1 = i0 + 1, frac = srcIdx - i0;
         const m0 = i0 <= half ? magArr[i0] : 0;
         const m1 = i1 <= half ? magArr[i1] : 0;
@@ -2662,16 +2765,22 @@ async function stretchBuffer(input, sampleRate, opts, onProgress) {
     }
     fft.inverse(real, imag);
     const outStart = Math.round(frame * hopOut);
-    for (let i = 0; i < windowSize; i++) { output[outStart + i] += real[i] * win[i]; winEnergy[outStart + i] += win[i] * win[i]; }
+    // Grain gain jitter (scatter) is applied only to the output contribution,
+    // not to winEnergy, so the OLA energy compensation below still normalizes
+    // for overlap while the jitter itself remains audible as amplitude
+    // variation between grains.
+    const gainJitter = (scatterActive && scatterGainDb > 0) ? dbToLinear((Math.random() * 2 - 1) * scatterGainDb) : 1;
+    for (let i = 0; i < windowSize; i++) { output[outStart + i] += real[i] * win[i] * gainJitter; winEnergy[outStart + i] += win[i] * win[i]; }
     inputPos += hopIn; frame++;
     if (Date.now() - lastMsg > 80) { onProgress(Math.min(1, inputPos / input.length)); lastMsg = Date.now(); }
   }
   onProgress(1);
   // Compensate for the actual overlap-add window energy at each sample so
   // reconstruction gain stays flat regardless of window shape, stretch
-  // ratio, or morphing (none of which are guaranteed to sum to a constant
-  // on their own) — this is what removes the amplitude pumping/smearing a
-  // plain double-windowed OLA otherwise produces at every stretch amount.
+  // ratio, or LFO/scatter modulation (none of which are guaranteed to sum to
+  // a constant on their own) — this is what removes the amplitude
+  // pumping/smearing a plain double-windowed OLA otherwise produces at every
+  // stretch amount.
   // Edge samples (partial window coverage) are floored relative to the
   // steady-state energy so they taper naturally instead of spiking.
   let steadyEnergy = 0;
@@ -2932,11 +3041,18 @@ function currentBaseOpts(stretch) {
     windowSize: nextPow2(parseInt(windowSizeInput.value, 10)),
     windowType: windowTypeInput.value,
     windowTypeB: windowTypeBInput.value,
-    morphEnabled: morphEnabledInput.checked,
-    morphRateHz: parseFloat(morphRateInput.value),
+    lfoEnabled: lfoEnabledInput.checked,
+    lfoTarget: lfoTargetInput.value,
+    lfoShape: lfoShapeInput.value,
+    lfoRateHz: parseFloat(lfoRateInput.value),
+    lfoDepth: parseFloat(lfoDepthInput.value) / 100,
     phaseAmount: parseFloat(phaseInput.value),
     formantShift: parseFloat(formantInput.value),
-    eqParams: currentEqParams()
+    eqParams: currentEqParams(),
+    scatterEnabled: scatterEnabledInput.checked,
+    scatterPosMs: parseFloat(scatterPosInput.value),
+    scatterPitchCents: parseFloat(scatterPitchInput.value),
+    scatterGainDb: parseFloat(scatterGainInput.value)
   };
 }
 
@@ -3027,11 +3143,18 @@ processBtn.onclick = async () => {
         windowSize: nextPow2(layer.windowSize),
         windowType: layer.windowType,
         windowTypeB: baseOpts.windowTypeB,
-        morphEnabled: baseOpts.morphEnabled,
-        morphRateHz: baseOpts.morphRateHz,
+        lfoEnabled: baseOpts.lfoEnabled,
+        lfoTarget: baseOpts.lfoTarget,
+        lfoShape: baseOpts.lfoShape,
+        lfoRateHz: baseOpts.lfoRateHz,
+        lfoDepth: baseOpts.lfoDepth,
         phaseAmount: layer.phaseAmount,
         formantShift: baseOpts.formantShift,
-        eqParams: baseOpts.eqParams
+        eqParams: baseOpts.eqParams,
+        scatterEnabled: baseOpts.scatterEnabled,
+        scatterPosMs: baseOpts.scatterPosMs,
+        scatterPitchCents: baseOpts.scatterPitchCents,
+        scatterGainDb: baseOpts.scatterGainDb
       };
       let layerResult = await runStretchJob('stretch', layerChannels[0], layerSr, layerOpts, p => reportProgress(stepIndex, totalSteps, p, layer.name));
 
@@ -3048,6 +3171,14 @@ processBtn.onclick = async () => {
       stepIndex++;
     }
     normalizePeak(outChannels);
+
+    if (lfoEnabledInput.checked && lfoTargetInput.value === 'stereoWidth' && outChannels.length > 1) {
+      applyStereoWidthLFO(outChannels, sr, {
+        rateHz: parseFloat(lfoRateInput.value),
+        depth: parseFloat(lfoDepthInput.value) / 100,
+        shape: lfoShapeInput.value
+      });
+    }
 
     if (anyTransients) {
       normalizePeak(padStemChannels);
@@ -3116,6 +3247,40 @@ function normalizePeak(channels) {
   for (const c of channels) for (let i = 0; i < c.length; i++) c[i] *= scale;
 }
 
+// Mid/side width modulation driven by an LFO — used when "Stereo Width" is
+// picked as the LFO target. Needs both channels at once (unlike window-blend
+// or formant modulation, which run independently per channel inside the
+// stretch worker), so it runs here as a post-process on the final mix.
+function mainThreadLfoValue(shape, rateHz, t) {
+  const phase = ((t * rateHz) % 1 + 1) % 1;
+  if (shape === 'triangle') return 2 * Math.abs(2 * (phase - Math.floor(phase + 0.5))) - 1;
+  if (shape === 'square') return phase < 0.5 ? 1 : -1;
+  if (shape === 'random') {
+    const seed = Math.floor(t * rateHz);
+    const x = Math.sin(seed * 12.9898) * 43758.5453;
+    return (x - Math.floor(x)) * 2 - 1;
+  }
+  return Math.sin(2 * Math.PI * rateHz * t);
+}
+function applyStereoWidthLFO(channels, sr, opts) {
+  const { rateHz, depth, shape } = opts;
+  if (depth <= 0) return channels;
+  const L = channels[0], R = channels[1];
+  const len = L.length;
+  const outL = new Float32Array(len), outR = new Float32Array(len);
+  for (let i = 0; i < len; i++) {
+    const lfo = mainThreadLfoValue(shape, rateHz, i / sr);
+    const width = Math.max(0, Math.min(2, 1 + depth * lfo));
+    const mid = (L[i] + (R[i] || 0)) * 0.5;
+    const side = (L[i] - (R[i] || 0)) * 0.5 * width;
+    outL[i] = mid + side;
+    outR[i] = mid - side;
+  }
+  channels[0] = outL;
+  channels[1] = outR;
+  return channels;
+}
+
 // ---------------------------------------------------------------------------
 // Arpeggiator — turns a rendered texture into a moving, pitched pattern.
 // Pure resampling (varispeed), no FFT: pitch-shift a fixed source grain up
@@ -3157,6 +3322,71 @@ function buildArpSequence(pattern, direction) {
   if (direction === 'down') return pattern.slice().reverse();
   if (direction === 'updown' && pattern.length > 2) return pattern.concat(pattern.slice(1, -1).reverse());
   return pattern.slice(); // 'up' and 'random' (random picks per-step below) both start from the plain pattern
+}
+
+// ---------------------------------------------------------------------------
+// MIDI export — writes the main arpeggiator's pattern/direction/division/gate
+// out as a Standard MIDI File (format 0), one full cycle through the
+// sequence, so the melody can be reused in a DAW. "Random" direction can't
+// be captured deterministically, so it exports using the plain pattern order.
+// ---------------------------------------------------------------------------
+function encodeMidiVLQ(value) {
+  const bytes = [value & 0x7f];
+  value = Math.floor(value / 128);
+  while (value > 0) {
+    bytes.unshift((value & 0x7f) | 0x80);
+    value = Math.floor(value / 128);
+  }
+  return bytes;
+}
+function buildArpMidiBytes() {
+  const bpm = parseFloat(bpmInput.value) || 120;
+  const stepBeats = getArpDivisionBeats(arpDivisionInput.value);
+  const gatePercent = Math.max(0.05, Math.min(1, parseFloat(arpGateInput.value) / 100));
+  const pattern = getArpPattern();
+  const direction = arpDirectionInput.value;
+  const sequence = direction === 'random' ? pattern.slice() : buildArpSequence(pattern, direction);
+
+  const ticksPerBeat = 480;
+  const stepTicks = Math.max(1, Math.round(stepBeats * ticksPerBeat));
+  const gateTicks = Math.max(1, Math.min(stepTicks - 1, Math.round(stepTicks * gatePercent)));
+  const baseNote = 60; // C4 root; the pattern's semitone offsets are relative to this
+
+  const events = [];
+  sequence.forEach((semi, i) => {
+    const note = Math.max(0, Math.min(127, baseNote + Math.round(semi)));
+    const onTick = i * stepTicks;
+    events.push({ tick: onTick, bytes: [0x90, note, 100] });
+    events.push({ tick: onTick + gateTicks, bytes: [0x80, note, 0] });
+  });
+  events.sort((a, b) => a.tick - b.tick);
+
+  const trackBytes = [];
+  const microsPerBeat = Math.round(60000000 / bpm);
+  trackBytes.push(...encodeMidiVLQ(0), 0xFF, 0x51, 0x03, (microsPerBeat >> 16) & 0xff, (microsPerBeat >> 8) & 0xff, microsPerBeat & 0xff);
+  let lastTick = 0;
+  for (const ev of events) {
+    trackBytes.push(...encodeMidiVLQ(ev.tick - lastTick), ...ev.bytes);
+    lastTick = ev.tick;
+  }
+  trackBytes.push(...encodeMidiVLQ(0), 0xFF, 0x2F, 0x00); // end of track
+
+  const header = [0x4D, 0x54, 0x68, 0x64, 0, 0, 0, 6, 0, 0, 0, 1, (ticksPerBeat >> 8) & 0xff, ticksPerBeat & 0xff];
+  const trackLen = trackBytes.length;
+  const trackHeader = [0x4D, 0x54, 0x72, 0x6B, (trackLen >>> 24) & 0xff, (trackLen >>> 16) & 0xff, (trackLen >>> 8) & 0xff, trackLen & 0xff];
+  return new Uint8Array([...header, ...trackHeader, ...trackBytes]);
+}
+function downloadArpMidi() {
+  const bytes = buildArpMidiBytes();
+  const blob = new Blob([bytes], { type: 'audio/midi' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'wavstretch_arp_pattern.mid';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
 // Applies the arpeggiator to already-rendered channels (main+layers mixed,
@@ -3245,6 +3475,8 @@ function applyArpeggiator(channels, sampleRate) {
   }
   return outChannels.map(c => Float32Array.from(c));
 }
+
+exportMidiBtn.onclick = downloadArpMidi;
 
 freezeBtn.onclick = async () => {
   if (!sourceBuffer) return;
