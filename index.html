@@ -664,7 +664,7 @@
     <div class="control-group advanced-only hidden">
       <div class="checkbox-row"><input type="checkbox" id="arpEnabled"><label for="arpEnabled">Turn the render into a pitched arpeggio</label></div>
       <button type="button" class="file-btn secondary" id="exportMidiBtn" style="width:100%; text-align:center; margin-top:8px;">Export Pattern as MIDI</button>
-      <div class="hint">Exports the pattern/direction/division/gate below as a one-bar-cycle .mid file (using the BPM from the Tempo Sync Calculator) so you can reuse the melody in a DAW — works even if the arpeggiator above isn't enabled. "Random" direction exports as its plain up-order pattern.</div>
+      <div class="hint">Exports a multi-track .mid: the main pattern below, plus a separate track for every layer with its own arpeggiator enabled — each looped to fill the Bars/BPM from the Tempo Sync Calculator, and generated even if the arpeggiator above isn't currently enabled. "Random" direction exports as its plain up-order pattern.</div>
       <div class="collapsible-body hidden" id="arpBody">
         <div class="hint">Re-pitches short grains pulled from one spot in the rendered texture into a repeating pattern. Runs on whatever you render next — the regular stretch or Freeze. Uses the BPM from the Tempo Sync Calculator above.</div>
         <div class="two-col">
@@ -3325,10 +3325,13 @@ function buildArpSequence(pattern, direction) {
 }
 
 // ---------------------------------------------------------------------------
-// MIDI export — writes the main arpeggiator's pattern/direction/division/gate
-// out as a Standard MIDI File (format 0), one full cycle through the
-// sequence, so the melody can be reused in a DAW. "Random" direction can't
-// be captured deterministically, so it exports using the plain pattern order.
+// MIDI export — writes every active arpeggiator (the main one, plus any
+// layer with its own arp enabled) out as a Standard MIDI File, format 1:
+// one tempo/meta track, then one note track per pattern, each on its own
+// channel. Each track loops its pattern to fill the "Bars" length from the
+// Tempo Sync Calculator above (so it matches how long you're targeting the
+// render to be, not just one bare cycle). "Random" direction can't be
+// captured deterministically, so it exports using the plain pattern order.
 // ---------------------------------------------------------------------------
 function encodeMidiVLQ(value) {
   const bytes = [value & 0x7f];
@@ -3339,42 +3342,91 @@ function encodeMidiVLQ(value) {
   }
   return bytes;
 }
-function buildArpMidiBytes() {
-  const bpm = parseFloat(bpmInput.value) || 120;
-  const stepBeats = getArpDivisionBeats(arpDivisionInput.value);
-  const gatePercent = Math.max(0.05, Math.min(1, parseFloat(arpGateInput.value) / 100));
-  const pattern = getArpPattern();
-  const direction = arpDirectionInput.value;
-  const sequence = direction === 'random' ? pattern.slice() : buildArpSequence(pattern, direction);
-
-  const ticksPerBeat = 480;
+function midiTextBytes(str) {
+  const s = (str || '').slice(0, 40);
+  const bytes = [];
+  for (let i = 0; i < s.length; i++) bytes.push(s.charCodeAt(i) & 0xff);
+  return bytes;
+}
+function wrapMTrk(trackBytes) {
+  const len = trackBytes.length;
+  return [0x4D, 0x54, 0x72, 0x6B, (len >>> 24) & 0xff, (len >>> 16) & 0xff, (len >>> 8) & 0xff, len & 0xff, ...trackBytes];
+}
+function buildTempoTrackBytes(bpm) {
+  const trackBytes = [];
+  const microsPerBeat = Math.round(60000000 / bpm);
+  const nameBytes = midiTextBytes('WavStretch');
+  trackBytes.push(...encodeMidiVLQ(0), 0xFF, 0x03, nameBytes.length, ...nameBytes);
+  trackBytes.push(...encodeMidiVLQ(0), 0xFF, 0x51, 0x03, (microsPerBeat >> 16) & 0xff, (microsPerBeat >> 8) & 0xff, microsPerBeat & 0xff);
+  trackBytes.push(...encodeMidiVLQ(0), 0xFF, 0x2F, 0x00);
+  return wrapMTrk(trackBytes);
+}
+// Builds one MTrk chunk for a single pattern, looping it until totalTicks is
+// filled (rather than just one pass), on the given MIDI channel.
+function buildArpTrackBytes({ pattern, direction, stepBeats, gatePercent, ticksPerBeat, totalTicks, channel, name }) {
   const stepTicks = Math.max(1, Math.round(stepBeats * ticksPerBeat));
   const gateTicks = Math.max(1, Math.min(stepTicks - 1, Math.round(stepTicks * gatePercent)));
+  const sequence = direction === 'random' ? pattern.slice() : buildArpSequence(pattern, direction);
   const baseNote = 60; // C4 root; the pattern's semitone offsets are relative to this
-
   const events = [];
-  sequence.forEach((semi, i) => {
+  let step = 0;
+  while (step * stepTicks < totalTicks && step < 4096) { // hard cap guards against pathological tiny divisions
+    const semi = sequence[step % sequence.length];
     const note = Math.max(0, Math.min(127, baseNote + Math.round(semi)));
-    const onTick = i * stepTicks;
-    events.push({ tick: onTick, bytes: [0x90, note, 100] });
-    events.push({ tick: onTick + gateTicks, bytes: [0x80, note, 0] });
-  });
+    const onTick = step * stepTicks;
+    const offTick = Math.min(totalTicks, onTick + gateTicks);
+    events.push({ tick: onTick, bytes: [0x90 | channel, note, 100] });
+    events.push({ tick: offTick, bytes: [0x80 | channel, note, 0] });
+    step++;
+  }
   events.sort((a, b) => a.tick - b.tick);
 
   const trackBytes = [];
-  const microsPerBeat = Math.round(60000000 / bpm);
-  trackBytes.push(...encodeMidiVLQ(0), 0xFF, 0x51, 0x03, (microsPerBeat >> 16) & 0xff, (microsPerBeat >> 8) & 0xff, microsPerBeat & 0xff);
+  const nameBytes = midiTextBytes(name);
+  trackBytes.push(...encodeMidiVLQ(0), 0xFF, 0x03, nameBytes.length, ...nameBytes);
   let lastTick = 0;
   for (const ev of events) {
     trackBytes.push(...encodeMidiVLQ(ev.tick - lastTick), ...ev.bytes);
     lastTick = ev.tick;
   }
-  trackBytes.push(...encodeMidiVLQ(0), 0xFF, 0x2F, 0x00); // end of track
+  trackBytes.push(...encodeMidiVLQ(0), 0xFF, 0x2F, 0x00);
+  return wrapMTrk(trackBytes);
+}
+function buildArpMidiBytes() {
+  const bpm = parseFloat(bpmInput.value) || 120;
+  const beatsPerBar = parseInt(beatsPerBarInput.value, 10) || 4;
+  const bars = Math.max(1, parseInt(targetBarsInput.value, 10) || 4);
+  const ticksPerBeat = 480;
+  const totalTicks = beatsPerBar * bars * ticksPerBeat;
 
-  const header = [0x4D, 0x54, 0x68, 0x64, 0, 0, 0, 6, 0, 0, 0, 1, (ticksPerBeat >> 8) & 0xff, ticksPerBeat & 0xff];
-  const trackLen = trackBytes.length;
-  const trackHeader = [0x4D, 0x54, 0x72, 0x6B, (trackLen >>> 24) & 0xff, (trackLen >>> 16) & 0xff, (trackLen >>> 8) & 0xff, trackLen & 0xff];
-  return new Uint8Array([...header, ...trackHeader, ...trackBytes]);
+  const noteTracks = [];
+  // Main arpeggiator — always included as a reference pattern, regardless of
+  // whether it's currently toggled on for audio rendering.
+  noteTracks.push(buildArpTrackBytes({
+    pattern: getArpPattern(),
+    direction: arpDirectionInput.value,
+    stepBeats: getArpDivisionBeats(arpDivisionInput.value),
+    gatePercent: Math.max(0.05, Math.min(1, parseFloat(arpGateInput.value) / 100)),
+    ticksPerBeat, totalTicks, channel: 0, name: 'Main'
+  }));
+  // Every layer with its own arpeggiator enabled gets its own track/channel.
+  let ch = 1;
+  layers.forEach((layer, idx) => {
+    if (!layer.arpEnabled) return;
+    if (ch === 9) ch++; // skip GM channel 10 (reserved for drums in many DAWs)
+    noteTracks.push(buildArpTrackBytes({
+      pattern: getLayerArpPattern(layer),
+      direction: layer.arpDirection || 'up',
+      stepBeats: getArpDivisionBeats(layer.arpDivision || '8'),
+      gatePercent: Math.max(0.05, Math.min(1, (layer.arpGate == null ? 70 : layer.arpGate) / 100)),
+      ticksPerBeat, totalTicks, channel: ch % 16, name: layer.name || `Layer ${idx + 1}`
+    }));
+    ch++;
+  });
+
+  const allTracks = [buildTempoTrackBytes(bpm), ...noteTracks];
+  const header = [0x4D, 0x54, 0x68, 0x64, 0, 0, 0, 6, 0, 1, (allTracks.length >> 8) & 0xff, allTracks.length & 0xff, (ticksPerBeat >> 8) & 0xff, ticksPerBeat & 0xff];
+  return new Uint8Array([...header, ...allTracks.flat()]);
 }
 function downloadArpMidi() {
   const bytes = buildArpMidiBytes();
